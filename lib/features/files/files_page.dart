@@ -5,7 +5,6 @@ import 'package:file_selector/file_selector.dart';
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/toolbox/device_state.dart';
 import '../../core/toolbox/file_staging.dart';
@@ -262,41 +261,32 @@ class _FilesPageState extends ConsumerState<FilesPage> {
     final entries = device == null
         ? null
         : ref.watch(filesProvider((device.id, _directory)));
-    return PageContent(
-      children: [
-        PageHeading(
-          context.tx('文件管理', 'Files'),
-          action: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ToolButton(
-                context.tx('工具', 'Tools'),
-                icon: FLucideIcons.arrowLeft,
-                onPress: () => context.go('/tools'),
-              ),
-              ToolButton(
-                context.tx('刷新', 'Refresh'),
-                icon: FLucideIcons.refreshCw,
-                onPress: device == null || _busy
-                    ? null
-                    : () => ref.invalidate(
-                        filesProvider((device.id, _directory)),
-                      ),
-              ),
-              ToolButton(
-                context.tx('新建目录', 'New directory'),
-                icon: FLucideIcons.folderPlus,
-                onPress: device == null || _busy ? null : _newDirectory,
-              ),
-              ToolButton(
-                context.tx('上传', 'Upload'),
-                icon: FLucideIcons.upload,
-                onPress: device == null || _busy ? null : _upload,
-              ),
-            ],
+    return ToolPage(
+      title: context.tx('文件管理', 'Files'),
+      actions: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ToolButton(
+            context.tx('刷新', 'Refresh'),
+            icon: FLucideIcons.refreshCw,
+            onPress: device == null || _busy
+                ? null
+                : () => ref.invalidate(filesProvider((device.id, _directory))),
           ),
-        ),
+          ToolButton(
+            context.tx('新建目录', 'New directory'),
+            icon: FLucideIcons.folderPlus,
+            onPress: device == null || _busy ? null : _newDirectory,
+          ),
+          ToolButton(
+            context.tx('上传', 'Upload'),
+            icon: FLucideIcons.upload,
+            onPress: device == null || _busy ? null : _upload,
+          ),
+        ],
+      ),
+      children: [
         const DevicePicker(),
         if (_error != null) ToolErrorNotice(_error!),
         if (_operation != null)
@@ -336,143 +326,155 @@ class _FilesPageState extends ConsumerState<FilesPage> {
         if (device == null)
           const SelectDeviceNotice()
         else ...[
-          ToolInput(
-            label: context.tx('路径', 'Path'),
-            controller: _path,
-            enabled: !_busy,
-            onSubmit: _navigate,
+          ToolControls(
+            breakpoint: 860,
+            content: ToolInput(
+              label: context.tx('路径', 'Path'),
+              controller: _path,
+              enabled: !_busy,
+              onSubmit: _navigate,
+            ),
+            actions: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                ToolButton(
+                  context.tx('打开', 'Open'),
+                  onPress: _busy ? null : () => _navigate(_path.text.trim()),
+                ),
+                ToolButton(
+                  context.tx('上级目录', 'Parent directory'),
+                  icon: FLucideIcons.arrowUp,
+                  onPress: _busy || _directory == '/'
+                      ? null
+                      : () => _navigate(parentRemotePath(_directory)),
+                ),
+                ToolButton(
+                  '/sdcard',
+                  onPress: _busy ? null : () => _navigate('/sdcard'),
+                ),
+                ToolButton(
+                  '/data/local/tmp',
+                  onPress: _busy ? null : () => _navigate('/data/local/tmp'),
+                ),
+              ],
+            ),
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ToolButton(
-                context.tx('打开', 'Open'),
-                onPress: _busy ? null : () => _navigate(_path.text.trim()),
-              ),
-              ToolButton(
-                context.tx('上级目录', 'Parent directory'),
-                icon: FLucideIcons.arrowUp,
-                onPress: _busy || _directory == '/'
-                    ? null
-                    : () => _navigate(parentRemotePath(_directory)),
-              ),
-              ToolButton(
-                '/sdcard',
-                onPress: _busy ? null : () => _navigate('/sdcard'),
-              ),
-              ToolButton(
-                '/data/local/tmp',
-                onPress: _busy ? null : () => _navigate('/data/local/tmp'),
-              ),
-            ],
-          ),
-          const SizedBox(height: 20),
-          entries!.when(
-            data: (items) {
-              final sorted = [...items]
-                ..sort(
-                  (a, b) => a.directory != b.directory
-                      ? (a.directory ? -1 : 1)
-                      : a.name.toLowerCase().compareTo(b.name.toLowerCase()),
-                );
-              return sorted.isEmpty
-                  ? EmptyNotice(context.tx('空目录', 'Empty directory'))
-                  : Column(
-                      children: [
-                        for (final file in sorted)
-                          Padding(
-                            padding: const EdgeInsets.only(bottom: 10),
-                            child: Surface(
-                              padding: 16,
-                              child: Column(
-                                crossAxisAlignment: .stretch,
-                                children: [
-                                  Row(
-                                    children: [
-                                      Icon(
-                                        file.directory
-                                            ? FLucideIcons.folder
-                                            : file.symbolicLink
-                                            ? FLucideIcons.link
-                                            : FLucideIcons.file,
-                                      ),
-                                      const SizedBox(width: 12),
-                                      Expanded(
-                                        child: Column(
-                                          crossAxisAlignment: .start,
-                                          children: [
-                                            Text(file.name),
-                                            if (!file.directory)
-                                              Text(
-                                                formatBytes(file.size),
-                                                style: context
-                                                    .theme
-                                                    .typography
-                                                    .body
-                                                    .sm,
-                                              ),
-                                          ],
-                                        ),
-                                      ),
-                                    ],
-                                  ),
-                                  const SizedBox(height: 12),
-                                  Wrap(
-                                    spacing: 8,
-                                    runSpacing: 8,
-                                    children: [
-                                      if (file.directory)
-                                        ToolButton(
-                                          context.tx('打开', 'Open'),
-                                          onPress: _busy
-                                              ? null
-                                              : () => _navigate(
-                                                  joinRemotePath(
-                                                    _directory,
-                                                    file.name,
-                                                  ),
-                                                ),
-                                        ),
-                                      if (!file.directory && !file.symbolicLink)
-                                        ToolButton(
-                                          context.tx('下载', 'Download'),
-                                          onPress: _busy
-                                              ? null
-                                              : () => _download(file),
-                                        ),
-                                      ToolButton(
-                                        context.tx('重命名', 'Rename'),
-                                        onPress: _busy
-                                            ? null
-                                            : () => _fileAction(file, 'rename'),
-                                      ),
-                                      ToolButton(
-                                        context.tx('删除', 'Delete'),
-                                        destructive: true,
-                                        onPress: _busy
-                                            ? null
-                                            : () => _fileAction(file, 'delete'),
-                                      ),
-                                    ],
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ),
-                      ],
-                    );
-            },
-            error: (error, _) => ToolErrorNotice(
-              error,
-              retry: () =>
-                  ref.invalidate(filesProvider((device.id, _directory))),
-            ),
-            loading: () => const LoadingNotice(),
-          ),
         ],
       ],
+      expandedChild: device == null
+          ? null
+          : entries!.when(
+              data: (items) {
+                final sorted = [...items]
+                  ..sort(
+                    (a, b) => a.directory != b.directory
+                        ? (a.directory ? -1 : 1)
+                        : a.name.toLowerCase().compareTo(b.name.toLowerCase()),
+                  );
+                return sorted.isEmpty
+                    ? SingleChildScrollView(
+                        child: EmptyNotice(
+                          context.tx('空目录', 'Empty directory'),
+                        ),
+                      )
+                    : ListView.builder(
+                        key: ValueKey((device.id, _directory)),
+                        primary: false,
+                        padding: EdgeInsets.zero,
+                        itemCount: sorted.length,
+                        itemBuilder: (context, index) {
+                          final file = sorted[index];
+                          return Padding(
+                            padding: const EdgeInsets.only(bottom: 8),
+                            child: Surface(
+                              padding: 12,
+                              child: ToolControls(
+                                content: Row(
+                                  children: [
+                                    Icon(
+                                      file.directory
+                                          ? FLucideIcons.folder
+                                          : file.symbolicLink
+                                          ? FLucideIcons.link
+                                          : FLucideIcons.file,
+                                    ),
+                                    const SizedBox(width: 12),
+                                    Expanded(
+                                      child: Column(
+                                        crossAxisAlignment: .start,
+                                        children: [
+                                          Text(file.name),
+                                          if (!file.directory)
+                                            Text(
+                                              formatBytes(file.size),
+                                              style: context
+                                                  .theme
+                                                  .typography
+                                                  .body
+                                                  .sm,
+                                            ),
+                                        ],
+                                      ),
+                                    ),
+                                  ],
+                                ),
+                                actions: Wrap(
+                                  alignment: WrapAlignment.end,
+                                  spacing: 8,
+                                  runSpacing: 8,
+                                  children: [
+                                    if (file.directory)
+                                      ToolButton(
+                                        context.tx('打开', 'Open'),
+                                        onPress: _busy
+                                            ? null
+                                            : () => _navigate(
+                                                joinRemotePath(
+                                                  _directory,
+                                                  file.name,
+                                                ),
+                                              ),
+                                      ),
+                                    if (!file.directory && !file.symbolicLink)
+                                      ToolButton(
+                                        context.tx('下载', 'Download'),
+                                        onPress: _busy
+                                            ? null
+                                            : () => _download(file),
+                                      ),
+                                    ToolButton(
+                                      context.tx('重命名', 'Rename'),
+                                      onPress: _busy
+                                          ? null
+                                          : () => _fileAction(file, 'rename'),
+                                    ),
+                                    ToolButton(
+                                      context.tx('删除', 'Delete'),
+                                      destructive: true,
+                                      onPress: _busy
+                                          ? null
+                                          : () => _fileAction(file, 'delete'),
+                                    ),
+                                  ],
+                                ),
+                              ),
+                            ),
+                          );
+                        },
+                      );
+              },
+              error: (error, _) => SingleChildScrollView(
+                child: ToolErrorNotice(
+                  error,
+                  retry: () =>
+                      ref.invalidate(filesProvider((device.id, _directory))),
+                ),
+              ),
+              loading: () =>
+                  const SingleChildScrollView(child: LoadingNotice()),
+            ),
     );
   }
 }

@@ -1,13 +1,14 @@
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/toolbox/device_state.dart';
 import '../../core/toolbox/toolbox_client.dart';
 import '../../shared/toolbox_widgets.dart';
 import '../../shared/widgets.dart';
+import '../../shared/responsive_button.dart';
+import 'device_info_card.dart';
 
 final deviceInfoProvider = FutureProvider.autoDispose.family<String, String>(
   (ref, id) => ref.watch(toolboxProvider).info(id),
@@ -19,16 +20,18 @@ class ToolsPage extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final device = ref.watch(activeDeviceProvider);
     return PageContent(
+      compact: true,
       children: [
-        PageHeading(context.tx('工具', 'Tools')),
+        PageHeading(context.tx('工具', 'Tools'), compact: true),
         const DevicePicker(),
         if (device == null)
           const SelectDeviceNotice()
         else ...[
           const ToolboxGrid(),
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
           PageHeading(
             context.tx('设备信息', 'Device information'),
+            compact: true,
             action: ToolButton(
               context.tx('刷新', 'Refresh'),
               icon: FLucideIcons.refreshCw,
@@ -38,14 +41,7 @@ class ToolsPage extends ConsumerWidget {
           ref
               .watch(deviceInfoProvider(device.id))
               .when(
-                data: (value) => Surface(
-                  child: SelectableText(
-                    value,
-                    style: context.theme.typography.body.sm.copyWith(
-                      fontFamily: 'monospace',
-                    ),
-                  ),
-                ),
+                data: (value) => DeviceInfoCard(device: device, output: value),
                 error: (error, _) => ToolErrorNotice(
                   error,
                   retry: () => ref.invalidate(deviceInfoProvider(device.id)),
@@ -64,7 +60,9 @@ class ToolboxGrid extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final device = ref.watch(activeDeviceProvider);
     return AdaptiveGrid(
-      minWidth: 200,
+      minWidth: 140,
+      spacing: 10,
+      maxColumns: MediaQuery.sizeOf(context).width < 600 ? 2 : 4,
       children: [
         for (final (title, icon, route) in [
           (
@@ -85,28 +83,18 @@ class ToolboxGrid extends ConsumerWidget {
               '/mirror/${device.id}',
             ),
         ])
-          Surface(
-            padding: 20,
-            child: Column(
-              crossAxisAlignment: .stretch,
-              children: [
-                Align(alignment: .centerLeft, child: Icon(icon, size: 28)),
-                const SizedBox(height: 16),
-                FButton(
-                  variant: .outline,
-                  onPress: device == null
-                      ? null
-                      : () {
-                          if (route.startsWith('/mirror')) {
-                            context.push(route);
-                          } else {
-                            context.go(route);
-                          }
-                        },
-                  child: Text(title),
-                ),
-              ],
+          FButton(
+            variant: .outline,
+            style: .delta(
+              contentStyle: .delta(
+                padding: .value(.symmetric(horizontal: 14, vertical: 18)),
+              ),
             ),
+            mainAxisAlignment: .start,
+            builder: responsiveButtonContent,
+            prefix: Icon(icon, size: 22),
+            onPress: device == null ? null : () => context.push(route),
+            child: Text(title),
           ),
       ],
     );

@@ -6,7 +6,6 @@ import 'package:flutter/widgets.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/toolbox/device_state.dart';
 import '../../core/toolbox/file_staging.dart';
@@ -179,34 +178,27 @@ class _AppsPageState extends ConsumerState<AppsPage> {
   Widget build(BuildContext context) {
     final device = ref.watch(activeDeviceProvider);
     final apps = device == null ? null : ref.watch(appsProvider(device.id));
-    return PageContent(
-      children: [
-        PageHeading(
-          context.tx('应用管理', 'Applications'),
-          action: Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              ToolButton(
-                context.tx('工具', 'Tools'),
-                icon: FLucideIcons.arrowLeft,
-                onPress: () => context.go('/tools'),
-              ),
-              ToolButton(
-                context.tx('刷新', 'Refresh'),
-                icon: FLucideIcons.refreshCw,
-                onPress: device == null || _busy
-                    ? null
-                    : () => ref.invalidate(appsProvider(device.id)),
-              ),
-              ToolButton(
-                context.tx('安装 APK', 'Install APK'),
-                icon: FLucideIcons.download,
-                onPress: device == null || _busy ? null : _install,
-              ),
-            ],
+    return ToolPage(
+      title: context.tx('应用管理', 'Applications'),
+      actions: Wrap(
+        spacing: 8,
+        runSpacing: 8,
+        children: [
+          ToolButton(
+            context.tx('刷新', 'Refresh'),
+            icon: FLucideIcons.refreshCw,
+            onPress: device == null || _busy
+                ? null
+                : () => ref.invalidate(appsProvider(device.id)),
           ),
-        ),
+          ToolButton(
+            context.tx('安装 APK', 'Install APK'),
+            icon: FLucideIcons.download,
+            onPress: device == null || _busy ? null : _install,
+          ),
+        ],
+      ),
+      children: [
         const DevicePicker(),
         if (_error != null) ToolErrorNotice(_error!),
         if (_operation != null)
@@ -215,32 +207,34 @@ class _AppsPageState extends ConsumerState<AppsPage> {
         if (device == null)
           const SelectDeviceNotice()
         else ...[
-          FTextField(
-            label: Text(context.tx('搜索包名', 'Search package name')),
-            control: .managed(
-              onChange: (value) => setState(() => _search = value.text),
+          ToolControls(
+            content: FTextField(
+              label: Text(context.tx('搜索包名', 'Search package name')),
+              control: .managed(
+                onChange: (value) => setState(() => _search = value.text),
+              ),
+            ),
+            actions: Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final (index, label) in [
+                  context.tx('全部', 'All'),
+                  context.tx('用户应用', 'User'),
+                  context.tx('系统应用', 'System'),
+                  context.tx('已停用', 'Disabled'),
+                ].indexed)
+                  FButton(
+                    size: .sm,
+                    mainAxisSize: .min,
+                    variant: _filter == index ? .primary : .outline,
+                    onPress: () => setState(() => _filter = index),
+                    child: Text(label),
+                  ),
+              ],
             ),
           ),
           const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final (index, label) in [
-                context.tx('全部', 'All'),
-                context.tx('用户应用', 'User'),
-                context.tx('系统应用', 'System'),
-                context.tx('已停用', 'Disabled'),
-              ].indexed)
-                FButton(
-                  mainAxisSize: .min,
-                  variant: _filter == index ? .primary : .outline,
-                  onPress: () => setState(() => _filter = index),
-                  child: Text(label),
-                ),
-            ],
-          ),
-          const SizedBox(height: 20),
           apps!.when(
             data: (items) {
               final query = _search.trim().toLowerCase();
@@ -268,7 +262,7 @@ class _AppsPageState extends ConsumerState<AppsPage> {
                         Text(
                           '${filtered.length} ${context.tx('个应用', 'applications')}',
                         ),
-                        const SizedBox(height: 12),
+                        const SizedBox(height: 8),
                         SizedBox(
                           // Keep the outer page scrollable while letting the app list
                           // use a real viewport. ListView.builder then creates only
@@ -278,7 +272,7 @@ class _AppsPageState extends ConsumerState<AppsPage> {
                               .toDouble(),
                           child: ListView.builder(
                             itemCount: filtered.length,
-                            padding: const EdgeInsets.only(bottom: 12),
+                            padding: const EdgeInsets.only(bottom: 8),
                             itemBuilder: (context, index) => Padding(
                               padding: const EdgeInsets.only(bottom: 12),
                               child: _AppCard(
@@ -337,16 +331,16 @@ class _AppCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) => Surface(
-    padding: 16,
+    padding: 12,
     child: Column(
       crossAxisAlignment: .stretch,
       children: [
-        Text(app.packageName, style: context.theme.typography.body.md),
-        const SizedBox(height: 8),
         Wrap(
           spacing: 8,
           runSpacing: 8,
+          crossAxisAlignment: WrapCrossAlignment.center,
           children: [
+            Text(app.packageName, style: context.theme.typography.body.md),
             FBadge(
               variant: .secondary,
               child: Text(
@@ -362,7 +356,7 @@ class _AppCard extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 12),
+        const SizedBox(height: 10),
         Wrap(
           spacing: 8,
           runSpacing: 8,

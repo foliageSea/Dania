@@ -8,13 +8,37 @@ import 'package:url_launcher/url_launcher.dart';
 import '../core/app_exception.dart';
 import 'localization.dart';
 
+class PageSafeArea extends StatelessWidget {
+  const PageSafeArea({required this.child, super.key});
+
+  final Widget child;
+
+  @override
+  Widget build(BuildContext context) => AnnotatedRegion<SystemUiOverlayStyle>(
+    value: context.theme.colors.systemOverlayStyle,
+    child: ColoredBox(
+      color: context.theme.colors.background,
+      child: SafeArea(child: child),
+    ),
+  );
+}
+
 class PageContent extends StatelessWidget {
-  const PageContent({required this.children, super.key});
+  const PageContent({
+    required this.children,
+    this.compact = false,
+    this.expandedChild,
+    super.key,
+  });
   final List<Widget> children;
+  final bool compact;
+  final Widget? expandedChild;
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
-    final padding = width < 600
+    final padding = compact
+        ? (width < 600 ? 12.0 : 20.0)
+        : width < 600
         ? 16.0
         : width < 1024
         ? 24.0
@@ -36,10 +60,31 @@ class PageContent extends StatelessWidget {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1440),
-            child: ListView(
-              padding: EdgeInsets.all(padding),
-              children: children,
-            ),
+            child: expandedChild == null
+                ? ListView(padding: EdgeInsets.all(padding), children: children)
+                : Padding(
+                    padding: EdgeInsets.all(padding),
+                    child: LayoutBuilder(
+                      builder: (context, constraints) => Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          ConstrainedBox(
+                            constraints: BoxConstraints(
+                              maxHeight: constraints.maxHeight * .65,
+                            ),
+                            child: SingleChildScrollView(
+                              primary: false,
+                              child: Column(
+                                crossAxisAlignment: CrossAxisAlignment.stretch,
+                                children: children,
+                              ),
+                            ),
+                          ),
+                          Expanded(child: expandedChild!),
+                        ],
+                      ),
+                    ),
+                  ),
           ),
         ),
       ),
@@ -48,24 +93,40 @@ class PageContent extends StatelessWidget {
 }
 
 class PageHeading extends StatelessWidget {
-  const PageHeading(this.title, {this.action, super.key});
+  const PageHeading(this.title, {this.action, this.compact = false, super.key});
   final String title;
   final Widget? action;
+  final bool compact;
   @override
   Widget build(BuildContext context) => Padding(
-    padding: const EdgeInsets.only(bottom: 28),
-    child: Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(
-          title,
-          style: context.theme.typography.display.lg.copyWith(
-            fontWeight: FontWeight.w600,
+    padding: EdgeInsets.only(bottom: compact ? 16 : 28),
+    child: compact
+        ? Wrap(
+            spacing: 16,
+            runSpacing: 10,
+            crossAxisAlignment: WrapCrossAlignment.center,
+            children: [
+              Text(
+                title,
+                style: context.theme.typography.display.sm.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              ?action,
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text(
+                title,
+                style: context.theme.typography.display.lg.copyWith(
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+              if (action != null) ...[const SizedBox(height: 16), action!],
+            ],
           ),
-        ),
-        if (action != null) ...[const SizedBox(height: 16), action!],
-      ],
-    ),
   );
 }
 
@@ -80,24 +141,31 @@ class Surface extends StatelessWidget {
 }
 
 class AdaptiveGrid extends StatelessWidget {
-  const AdaptiveGrid({required this.children, this.minWidth = 280, super.key});
+  const AdaptiveGrid({
+    required this.children,
+    this.minWidth = 280,
+    this.spacing = 16,
+    this.maxColumns = 4,
+    super.key,
+  });
   final List<Widget> children;
   final double minWidth;
+  final double spacing;
+  final int maxColumns;
   @override
   Widget build(BuildContext context) => LayoutBuilder(
     builder: (context, box) {
-      final columns = ((box.maxWidth + 16) / (minWidth + 16)).floor().clamp(
-        1,
-        children.length.clamp(1, 4),
-      );
-      final width = (box.maxWidth - (columns - 1) * 16) / columns;
+      final columns = ((box.maxWidth + spacing) / (minWidth + spacing))
+          .floor()
+          .clamp(1, children.length.clamp(1, maxColumns));
+      final width = (box.maxWidth - (columns - 1) * spacing) / columns;
       return AnimatedSize(
         duration: const Duration(milliseconds: 220),
         curve: Curves.easeOutCubic,
         alignment: Alignment.topCenter,
         child: Wrap(
-          spacing: 16,
-          runSpacing: 16,
+          spacing: spacing,
+          runSpacing: spacing,
           children: [
             for (final child in children) SizedBox(width: width, child: child),
           ],

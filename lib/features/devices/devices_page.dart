@@ -119,7 +119,12 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
                     children: [
                       const Icon(FLucideIcons.shieldCheck),
                       const SizedBox(width: 12),
-                      Text('Shizuku', style: context.theme.typography.body.lg),
+                      Expanded(
+                        child: Text(
+                          'Shizuku',
+                          style: context.theme.typography.body.lg,
+                        ),
+                      ),
                     ],
                   ),
                   const SizedBox(height: 20),
@@ -196,9 +201,11 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
                     children: [
                       const Icon(FLucideIcons.wifi),
                       const SizedBox(width: 12),
-                      Text(
-                        context.tx('无线 ADB', 'Wireless ADB'),
-                        style: context.theme.typography.body.lg,
+                      Expanded(
+                        child: Text(
+                          context.tx('无线 ADB', 'Wireless ADB'),
+                          style: context.theme.typography.body.lg,
+                        ),
                       ),
                     ],
                   ),
@@ -242,6 +249,7 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
                   ],
                   const SizedBox(height: 20),
                   Wrap(
+                    alignment: WrapAlignment.end,
                     spacing: 8,
                     runSpacing: 8,
                     children: [
@@ -356,6 +364,7 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
                               ),
                               const SizedBox(height: 12),
                               Wrap(
+                                alignment: WrapAlignment.end,
                                 spacing: 8,
                                 runSpacing: 8,
                                 children: [
@@ -406,31 +415,34 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
               padding: const EdgeInsets.only(bottom: 8),
               child: Surface(
                 padding: 16,
-                child: Wrap(
-                  spacing: 12,
-                  runSpacing: 8,
-                  crossAxisAlignment: .center,
-                  children: [
-                    Text(endpoint.address),
-                    ToolButton(
-                      context.tx('连接', 'Connect'),
-                      onPress: _busy
-                          ? null
-                          : () => _run(
-                              () => _connect(endpoint.host, endpoint.port),
-                            ),
-                    ),
-                    ToolButton(
-                      context.tx('移除', 'Remove'),
-                      onPress: _busy
-                          ? null
-                          : () => _run(
-                              () => ref
-                                  .read(endpointsProvider.notifier)
-                                  .remove(endpoint),
-                            ),
-                    ),
-                  ],
+                child: ToolControls(
+                  breakpoint: 360,
+                  content: Text(endpoint.address),
+                  actions: Wrap(
+                    alignment: WrapAlignment.end,
+                    spacing: 8,
+                    runSpacing: 8,
+                    children: [
+                      ToolButton(
+                        context.tx('连接', 'Connect'),
+                        onPress: _busy
+                            ? null
+                            : () => _run(
+                                () => _connect(endpoint.host, endpoint.port),
+                              ),
+                      ),
+                      ToolButton(
+                        context.tx('移除', 'Remove'),
+                        onPress: _busy
+                            ? null
+                            : () => _run(
+                                () => ref
+                                    .read(endpointsProvider.notifier)
+                                    .remove(endpoint),
+                              ),
+                      ),
+                    ],
+                  ),
                 ),
               ),
             ),

@@ -54,10 +54,11 @@ class DevicePicker extends ConsumerWidget {
     final devices = ref.watch(devicesProvider);
     final selected = ref.watch(activeDeviceProvider);
     return Padding(
-      padding: const EdgeInsets.only(bottom: 20),
+      padding: const EdgeInsets.only(bottom: 12),
       child: devices.when(
         data: (items) => items.isEmpty
             ? FButton(
+                size: .sm,
                 variant: .outline,
                 onPress: () => context.go('/devices'),
                 prefix: const Icon(FLucideIcons.plug),
@@ -69,6 +70,7 @@ class DevicePicker extends ConsumerWidget {
                 children: [
                   for (final device in items)
                     FButton(
+                      size: .sm,
                       mainAxisSize: .min,
                       builder: responsiveButtonContent,
                       variant: selected?.id == device.id ? .primary : .outline,
@@ -83,6 +85,7 @@ class DevicePicker extends ConsumerWidget {
                       child: Text(device.name),
                     ),
                   FButton.icon(
+                    size: .sm,
                     variant: .ghost,
                     semanticsLabel: context.tx('设备', 'Devices'),
                     onPress: () => context.go('/devices'),
@@ -107,6 +110,51 @@ class SelectDeviceNotice extends StatelessWidget {
       EmptyNotice(context.tx('选择设备', 'Select a device'));
 }
 
+class ToolPage extends StatelessWidget {
+  const ToolPage({
+    required this.title,
+    required this.children,
+    this.actions,
+    this.expandedChild,
+    super.key,
+  });
+
+  final String title;
+  final List<Widget> children;
+  final Widget? actions;
+  final Widget? expandedChild;
+
+  @override
+  Widget build(BuildContext context) => PageSafeArea(
+    child: FScaffold(
+      childPad: false,
+      header: FHeader.nested(
+        title: Text(title),
+        prefixes: [
+          FHeaderAction.back(
+            onPress: () {
+              if (Navigator.of(context).canPop()) {
+                Navigator.of(context).pop();
+              } else {
+                context.go('/tools');
+              }
+            },
+          ),
+        ],
+      ),
+      child: PageContent(
+        compact: true,
+        expandedChild: expandedChild,
+        children: [
+          if (actions != null)
+            Padding(padding: const EdgeInsets.only(bottom: 12), child: actions),
+          ...children,
+        ],
+      ),
+    ),
+  );
+}
+
 class ToolButton extends StatelessWidget {
   const ToolButton(
     this.label, {
@@ -121,12 +169,48 @@ class ToolButton extends StatelessWidget {
   final bool destructive;
   @override
   Widget build(BuildContext context) => FButton(
+    size: .sm,
     mainAxisSize: .min,
     builder: responsiveButtonContent,
     variant: destructive ? .destructive : .outline,
     onPress: onPress,
     prefix: icon == null ? null : Icon(icon, size: 16),
     child: Text(label),
+  );
+}
+
+class ToolControls extends StatelessWidget {
+  const ToolControls({
+    required this.content,
+    required this.actions,
+    this.breakpoint = 760,
+    super.key,
+  });
+
+  final Widget content;
+  final Widget actions;
+  final double breakpoint;
+
+  @override
+  Widget build(BuildContext context) => LayoutBuilder(
+    builder: (context, constraints) => constraints.maxWidth >= breakpoint
+        ? Row(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              Expanded(child: content),
+              const SizedBox(width: 12),
+              ConstrainedBox(
+                constraints: BoxConstraints(
+                  maxWidth: constraints.maxWidth * .55,
+                ),
+                child: actions,
+              ),
+            ],
+          )
+        : Column(
+            crossAxisAlignment: CrossAxisAlignment.stretch,
+            children: [content, const SizedBox(height: 10), actions],
+          ),
   );
 }
 

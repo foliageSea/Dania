@@ -6,7 +6,6 @@ import 'package:flutter/widgets.dart';
 import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../core/toolbox/device_state.dart';
 import '../../core/toolbox/toolbox_client.dart';
@@ -164,26 +163,22 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
   Widget build(BuildContext context) {
     final active = ref.watch(activeDeviceProvider);
     final history = ref.watch(commandHistoryProvider);
-    return PageContent(
+    return ToolPage(
+      title: context.tx('终端', 'Terminal'),
       children: [
-        PageHeading(
-          context.tx('终端', 'Terminal'),
-          action: ToolButton(
-            context.tx('工具', 'Tools'),
-            icon: FLucideIcons.arrowLeft,
-            onPress: () => context.go('/tools'),
-          ),
-        ),
         const DevicePicker(),
         if (_error != null) ToolErrorNotice(_error!),
         if (active == null && _operation == null) const SelectDeviceNotice(),
         Surface(
-          padding: 16,
+          padding: 12,
           child: Column(
             crossAxisAlignment: .stretch,
             children: [
               SizedBox(
-                height: 340,
+                height: (MediaQuery.sizeOf(context).height * .38).clamp(
+                  200.0,
+                  420.0,
+                ),
                 child: NotificationListener<ScrollNotification>(
                   onNotification: (event) {
                     if (event is UserScrollNotification)
@@ -202,42 +197,47 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
                   ),
                 ),
               ),
-              const SizedBox(height: 16),
-              ToolInput(
-                label: context.tx('命令', 'Command'),
-                controller: _command,
-                enabled: _operation == null,
-                hint: 'getprop ro.product.model',
-                onSubmit: (_) => _run(),
-              ),
-              const SizedBox(height: 16),
-              Wrap(
-                spacing: 8,
-                runSpacing: 8,
-                children: [
-                  ToolButton(
-                    context.tx('执行', 'Run'),
-                    icon: FLucideIcons.play,
-                    onPress: active == null || _operation != null ? null : _run,
-                  ),
-                  if (_operation != null)
+              const SizedBox(height: 12),
+              ToolControls(
+                breakpoint: 820,
+                content: ToolInput(
+                  label: context.tx('命令', 'Command'),
+                  controller: _command,
+                  enabled: _operation == null,
+                  hint: 'getprop ro.product.model',
+                  onSubmit: (_) => _run(),
+                ),
+                actions: Wrap(
+                  spacing: 8,
+                  runSpacing: 8,
+                  children: [
                     ToolButton(
-                      context.tx('停止', 'Stop'),
-                      icon: FLucideIcons.square,
-                      onPress: _cancel,
+                      context.tx('执行', 'Run'),
+                      icon: FLucideIcons.play,
+                      onPress: active == null || _operation != null
+                          ? null
+                          : _run,
                     ),
-                  ToolButton(
-                    context.tx('复制输出', 'Copy output'),
-                    icon: FLucideIcons.copy,
-                    onPress: _output.isEmpty
-                        ? null
-                        : () => Clipboard.setData(ClipboardData(text: _output)),
-                  ),
-                  ToolButton(
-                    context.tx('清空', 'Clear'),
-                    onPress: () => setState(() => _output = ''),
-                  ),
-                ],
+                    if (_operation != null)
+                      ToolButton(
+                        context.tx('停止', 'Stop'),
+                        icon: FLucideIcons.square,
+                        onPress: _cancel,
+                      ),
+                    ToolButton(
+                      context.tx('复制输出', 'Copy output'),
+                      icon: FLucideIcons.copy,
+                      onPress: _output.isEmpty
+                          ? null
+                          : () =>
+                                Clipboard.setData(ClipboardData(text: _output)),
+                    ),
+                    ToolButton(
+                      context.tx('清空', 'Clear'),
+                      onPress: () => setState(() => _output = ''),
+                    ),
+                  ],
+                ),
               ),
               if (_operation != null) ...[
                 const SizedBox(height: 12),
@@ -246,7 +246,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
             ],
           ),
         ),
-        const SizedBox(height: 20),
+        const SizedBox(height: 12),
         Wrap(
           spacing: 8,
           runSpacing: 8,
@@ -267,7 +267,7 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
           ],
         ),
         if (history.isNotEmpty) ...[
-          const SizedBox(height: 28),
+          const SizedBox(height: 20),
           Text(
             context.tx('本次会话历史', 'Session history'),
             style: context.theme.typography.body.lg,

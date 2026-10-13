@@ -33,18 +33,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
           StatefulShellBranch(
             routes: [
-              GoRoute(
-                path: '/tools',
-                builder: (_, _) => const ToolsPage(),
-                routes: [
-                  GoRoute(
-                    path: 'terminal',
-                    builder: (_, _) => const TerminalPage(),
-                  ),
-                  GoRoute(path: 'apps', builder: (_, _) => const AppsPage()),
-                  GoRoute(path: 'files', builder: (_, _) => const FilesPage()),
-                ],
-              ),
+              GoRoute(path: '/tools', builder: (_, _) => const ToolsPage()),
             ],
           ),
           StatefulShellBranch(
@@ -57,6 +46,9 @@ final routerProvider = Provider<GoRouter>((ref) {
           ),
         ],
       ),
+      GoRoute(path: '/tools/terminal', builder: (_, _) => const TerminalPage()),
+      GoRoute(path: '/tools/apps', builder: (_, _) => const AppsPage()),
+      GoRoute(path: '/tools/files', builder: (_, _) => const FilesPage()),
       GoRoute(
         path: '/mirror/:id',
         builder: (_, state) =>

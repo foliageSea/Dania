@@ -30,6 +30,13 @@ FThemeData createAppTheme(
   final colors = neutral.copyWith(
     primary: settings.themeColor.primary(brightness),
     primaryForeground: neutral.primaryForeground,
+    systemOverlayStyle: neutral.systemOverlayStyle.copyWith(
+      statusBarColor: const Color(0x00000000),
+      systemNavigationBarColor: const Color(0x00000000),
+      systemNavigationBarDividerColor: const Color(0x00000000),
+      systemStatusBarContrastEnforced: false,
+      systemNavigationBarContrastEnforced: false,
+    ),
   );
   final typography = FTypography.inherit(colors: colors, touch: touch);
   final radii = const FBorderRadius().scale(settings.radiusScale);

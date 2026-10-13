@@ -8,6 +8,7 @@ import '../../core/toolbox/device_state.dart';
 import '../../core/toolbox/models.dart';
 import '../../core/toolbox/toolbox_client.dart';
 import '../../shared/toolbox_widgets.dart';
+import '../../shared/widgets.dart';
 
 class MirrorPage extends ConsumerStatefulWidget {
   const MirrorPage({required this.deviceId, super.key});
@@ -203,7 +204,7 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
         .where((item) => item.id == widget.deviceId)
         .firstOrNull;
     final info = _info;
-    return SafeArea(
+    return PageSafeArea(
       child: FScaffold(
         childPad: false,
         header: FHeader.nested(
@@ -215,11 +216,32 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
         child: Column(
           children: [
             Padding(
-              padding: const EdgeInsets.fromLTRB(16, 8, 16, 12),
+              padding: const EdgeInsets.fromLTRB(12, 4, 12, 8),
               child: Column(
                 crossAxisAlignment: .stretch,
                 children: [
                   if (_error != null) ToolErrorNotice(_error!),
+                  if (device != null)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 8),
+                      child: Wrap(
+                        spacing: 12,
+                        runSpacing: 4,
+                        children: [
+                          Text(
+                            device.address,
+                            style: context.theme.typography.body.sm.copyWith(
+                              color: context.theme.colors.mutedForeground,
+                            ),
+                          ),
+                          if (info != null)
+                            Text(
+                              '${info.width} × ${info.height}',
+                              style: context.theme.typography.body.sm,
+                            ),
+                        ],
+                      ),
+                    ),
                   Wrap(
                     spacing: 8,
                     runSpacing: 8,
@@ -295,7 +317,7 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
               ),
             ),
             Padding(
-              padding: const EdgeInsets.all(12),
+              padding: const EdgeInsets.all(8),
               child: Wrap(
                 spacing: 8,
                 runSpacing: 8,
