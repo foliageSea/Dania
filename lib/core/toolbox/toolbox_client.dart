@@ -146,8 +146,10 @@ class ToolboxClient {
       'bitRate': bitRate,
     }))!,
   );
-  Future<void> stopMirror(String device) =>
-      invoke<void>('stopMirror', {'deviceId': device});
+  Future<void> stopMirror(String device, {String? mirrorId}) => invoke<void>(
+    'stopMirror',
+    {'deviceId': device, if (mirrorId != null) 'mirrorId': mirrorId},
+  );
   Future<void> mirrorTouch(
     String device, {
     required int action,

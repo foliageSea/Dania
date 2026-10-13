@@ -7,6 +7,15 @@ import java.io.DataInputStream
 import java.nio.ByteBuffer
 
 class ProtocolsTest {
+    @Test fun scrcpyIdMatchesServerSocket() {
+        for (value in listOf(0, 1, 0x12345678, 0x7fffffff)) {
+            val argument = Protocols.scrcpyId(value)
+            val serverId = Integer.parseInt(argument, 16)
+            assertEquals(value, serverId)
+            assertEquals("scrcpy_%08x".format(value), "scrcpy_%08x".format(serverId))
+        }
+    }
+
     @Test fun quotesShellArguments() {
         assertEquals("'file'", Protocols.quote("file"))
         assertEquals("'a'\\''b'", Protocols.quote("a'b"))

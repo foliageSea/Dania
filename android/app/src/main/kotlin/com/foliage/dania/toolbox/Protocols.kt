@@ -7,6 +7,11 @@ import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
 object Protocols {
+    fun scrcpyId(value: Int): String {
+        require(value >= 0)
+        return value.toString(16).padStart(8, '0')
+    }
+
     fun quote(value: String): String {
         require(!value.contains('\u0000'))
         return "'" + value.replace("'", "'\\''") + "'"

@@ -2,7 +2,9 @@ package com.foliage.dania.toolbox
 
 import android.content.Context
 import android.media.MediaCodec
+import android.media.MediaCodecInfo
 import android.media.MediaFormat
+import android.os.Build
 import android.os.Handler
 import io.flutter.view.TextureRegistry
 import io.github.muntashirakon.adb.AdbStream
@@ -16,6 +18,7 @@ import java.util.concurrent.atomic.AtomicBoolean
 import kotlin.concurrent.thread
 
 class ScrcpySession(
+    val mirrorId: String,
     private val context: Context,
     private val adb: AdbBackend,
     private val producer: TextureRegistry.SurfaceProducer,
@@ -49,8 +52,8 @@ class ScrcpySession(
         AdbSync(remember(adb.openStream("sync:"))).use { sync ->
             context.assets.open("scrcpy-server-v5.0.1").use { sync.push(remoteJar, it) {} }
         }
-        val scid = java.security.SecureRandom().nextInt(Int.MAX_VALUE)
-        val socket = "scrcpy_%08x".format(scid)
+        val scid = Protocols.scrcpyId(java.security.SecureRandom().nextInt(Int.MAX_VALUE))
+        val socket = "scrcpy_$scid"
         val process = remember(adb.command(
             "CLASSPATH=${Protocols.quote(remoteJar)} app_process / com.genymobile.scrcpy.Server 5.0.1 " +
                 "scid=$scid tunnel_forward=true audio=false control=true video_codec=h264 " +
@@ -74,19 +77,22 @@ class ScrcpySession(
             val info = MediaCodec.BufferInfo()
             try {
                 while (!stopped.get()) {
-                    synchronized(codecLock) {
+                    val available = synchronized(codecLock) {
                         codec?.let { decoder ->
-                            val index = decoder.dequeueOutputBuffer(info, 10000)
-                            if (index >= 0) {
-                                decoder.releaseOutputBuffer(index, true)
+                            val drained = VideoOutput.drain(
+                                { decoder.dequeueOutputBuffer(info, 0) },
+                                { index, render -> decoder.releaseOutputBuffer(index, render) },
+                            )
+                            if (drained) {
                                 if (!rendered) {
                                     rendered = true
                                     emit(mapOf("type" to "mirror", "state" to "playing"))
                                 }
                             }
-                        }
+                            drained
+                        } ?: false
                     }
-                    Thread.yield()
+                    if (!available) Thread.sleep(1)
                 }
             } catch (e: Exception) { fail(e) }
         }
@@ -135,6 +141,12 @@ class ScrcpySession(
             try {
                 val format = MediaFormat.createVideoFormat(MediaFormat.MIMETYPE_VIDEO_AVC, w, h)
                 format.setInteger(MediaFormat.KEY_MAX_INPUT_SIZE, 4 * 1024 * 1024)
+                if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R && runCatching {
+                    decoder.codecInfo.getCapabilitiesForType(MediaFormat.MIMETYPE_VIDEO_AVC)
+                        .isFeatureSupported(MediaCodecInfo.CodecCapabilities.FEATURE_LowLatency)
+                }.getOrDefault(false)) {
+                    format.setInteger(MediaFormat.KEY_LOW_LATENCY, 1)
+                }
                 decoder.configure(format, target, null, 0)
                 decoder.start()
                 codec = decoder
@@ -151,7 +163,7 @@ class ScrcpySession(
             var queued = false
             synchronized(codecLock) {
                 val decoder = codec ?: throw IllegalStateException("Decoder unavailable")
-                val index = decoder.dequeueInputBuffer(10000)
+                val index = decoder.dequeueInputBuffer(0)
                 if (index >= 0) {
                     val buffer = decoder.getInputBuffer(index) ?: throw IllegalStateException("Decoder buffer unavailable")
                     check(packet.payload.size <= buffer.capacity()) { "Video frame exceeds decoder buffer" }
@@ -163,7 +175,7 @@ class ScrcpySession(
                 }
             }
             if (queued) return
-            Thread.yield()
+            Thread.sleep(1)
         }
         if (!stopped.get()) throw IllegalStateException("Video decoder timed out")
     }
@@ -192,6 +204,8 @@ class ScrcpySession(
             close()
         }
     }
+
+    fun timeout() { fail(IllegalStateException("Screen control startup timed out")) }
 
     override fun close() {
         if (!stopped.compareAndSet(false, true)) return

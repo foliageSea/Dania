@@ -20,6 +20,7 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
     with WidgetsBindingObserver {
   late final ToolboxClient _client;
   StreamSubscription<Map<Object?, Object?>>? _events;
+  Timer? _startupTimer;
   MirrorInfo? _info;
   String? _mirrorId;
   bool _starting = false;
@@ -50,10 +51,13 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
             case 'playing':
               _playing = true;
             case 'error':
-              _error = event['error'];
+              _startupTimer?.cancel();
+              _error = event['error'] ?? 'Screen control failed';
               _info = null;
               _starting = false;
+              _playing = false;
             case 'stopped':
+              _startupTimer?.cancel();
               _info = null;
               _starting = false;
               _playing = false;
@@ -61,7 +65,9 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
         });
       },
       onError: (Object error) {
-        if (mounted) setState(() => _error = error);
+        if (!mounted) return;
+        unawaited(_stop());
+        setState(() => _error = error);
       },
     );
   }
@@ -75,6 +81,19 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
       _playing = false;
       _mirrorId = id;
     });
+    _startupTimer = Timer(const Duration(seconds: 35), () {
+      if (!mounted || _mirrorId != id || !_starting) return;
+      unawaited(_stop());
+      setState(() {
+        _error = ToolboxException(
+          'mirrorTimeout',
+          context.tx(
+            '投屏启动超时，请重试',
+            'Screen control startup timed out. Try again.',
+          ),
+        );
+      });
+    });
     try {
       final settings = [
         (720, 2000000),
@@ -87,23 +106,29 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
         maxSize: settings.$1,
         bitRate: settings.$2,
       );
-      if (mounted && _mirrorId == id && _starting)
+      if (mounted && _mirrorId == id && _starting) {
+        _startupTimer?.cancel();
         setState(() {
           _info = info;
           _starting = false;
         });
-      else
-        await _client.stopMirror(widget.deviceId);
+      } else {
+        await _client.stopMirror(widget.deviceId, mirrorId: id);
+      }
     } catch (error) {
-      if (mounted && _mirrorId == id)
+      if (mounted && _mirrorId == id) {
+        _startupTimer?.cancel();
         setState(() {
           _error = error;
           _starting = false;
         });
+      }
     }
   }
 
   Future<void> _stop() async {
+    _startupTimer?.cancel();
+    final id = _mirrorId;
     _mirrorId = null;
     if (mounted)
       setState(() {
@@ -112,9 +137,9 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
         _playing = false;
       });
     try {
-      await _client.stopMirror(widget.deviceId);
+      if (id != null) await _client.stopMirror(widget.deviceId, mirrorId: id);
     } catch (error) {
-      if (mounted) setState(() => _error = error);
+      if (mounted && _mirrorId == null) setState(() => _error = error);
     }
   }
 
@@ -157,8 +182,15 @@ class _MirrorPageState extends ConsumerState<MirrorPage>
   @override
   void dispose() {
     WidgetsBinding.instance.removeObserver(this);
+    _startupTimer?.cancel();
     _events?.cancel();
-    unawaited(_client.stopMirror(widget.deviceId).catchError((Object _) {}));
+    final id = _mirrorId;
+    if (id != null)
+      unawaited(
+        _client
+            .stopMirror(widget.deviceId, mirrorId: id)
+            .catchError((Object _) {}),
+      );
     super.dispose();
   }
 

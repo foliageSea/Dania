@@ -138,23 +138,35 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
         if (call.method == "startMirror") {
             val producer = engine.renderer.createSurfaceProducer()
             workers.execute {
+                val completed = AtomicBoolean(false)
+                var mirror: ScrcpySession? = null
                 try {
                     val id = text(call, "deviceId")
+                    val mirrorId = text(call, "mirrorId")
                     check(id != "local") { "Mirroring requires a remote ADB device" }
                     stopMirror(id)
-                    val mirror = ScrcpySession(activity, backend(id), producer, main,
-                        { event -> emit(event + mapOf("deviceId" to id, "mirrorId" to text(call, "mirrorId"))) })
-                    mirrors[id] = mirror
-                    val deadline = timer.schedule({ mirror.close() }, 30, TimeUnit.SECONDS)
+                    val session = ScrcpySession(mirrorId, activity, backend(id), producer, main,
+                        { event -> emit(event + mapOf("deviceId" to id, "mirrorId" to mirrorId)) })
+                    mirror = session
+                    mirrors[id] = session
+                    val deadline = timer.schedule({
+                        if (completed.compareAndSet(false, true)) {
+                            main.post { result.error("mirrorTimeout", "Screen control startup timed out", null) }
+                            mirrors.remove(id, session)
+                            session.timeout()
+                        }
+                    }, 30, TimeUnit.SECONDS)
                     try {
-                        val info = mirror.start(number(call, "maxSize", 1280), number(call, "bitRate", 4000000))
-                        main.post { result.success(info) }
+                        val info = session.start(number(call, "maxSize", 1280), number(call, "bitRate", 4000000))
+                        if (completed.compareAndSet(false, true)) main.post { result.success(info) }
                     } finally { deadline.cancel(false) }
                 } catch (e: Exception) {
                     val id = call.argument<String>("deviceId")
-                    val mirror = if (id != null) mirrors.remove(id) else null
-                    if (mirror != null) mirror.close() else main.post { producer.release() }
-                    main.post { result.error("mirror", e.message, null) }
+                    if (completed.compareAndSet(false, true)) main.post { result.error("mirror", e.message, null) }
+                    if (mirror != null) {
+                        if (id != null) mirrors.remove(id, mirror)
+                        mirror.close()
+                    } else main.post { producer.release() }
                 }
             }
             return
@@ -191,7 +203,7 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
                     "upload" -> upload(call)
                     "download" -> download(call)
                     "install" -> install(call)
-                    "stopMirror" -> { stopMirror(text(call, "deviceId")); null }
+                    "stopMirror" -> { stopMirror(text(call, "deviceId"), call.argument<String>("mirrorId")); null }
                     "mirrorTouch" -> {
                         mirrors[text(call, "deviceId")]?.touch(number(call, "action"),
                             call.argument<Number>("pointer")?.toLong() ?: 0,
@@ -496,8 +508,12 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
         }
     }
 
-    fun stopMirrors() { mirrors.keys.toList().forEach(::stopMirror) }
-    private fun stopMirror(id: String) { mirrors.remove(id)?.close() }
+    fun stopMirrors() { mirrors.keys.toList().forEach { stopMirror(it) } }
+    private fun stopMirror(id: String, mirrorId: String? = null) {
+        val mirror = mirrors[id] ?: return
+        if (mirrorId != null && mirror.mirrorId != mirrorId) return
+        if (mirrors.remove(id, mirror)) mirror.close()
+    }
 
     fun onActivityResult(requestCode: Int, resultCode: Int, data: Intent?): Boolean {
         if (requestCode != 4812) return false
