@@ -358,27 +358,53 @@ class _AppCard extends StatelessWidget {
         ),
         const SizedBox(height: 10),
         Wrap(
+          alignment: WrapAlignment.end,
           spacing: 8,
           runSpacing: 8,
           children: [
-            for (final (label, action) in [
-              (context.tx('详情', 'Details'), 'details'),
-              (
-                app.enabled
-                    ? context.tx('停用', 'Disable')
-                    : context.tx('启用', 'Enable'),
-                app.enabled ? 'disable' : 'enable',
+            ToolButton(
+              context.tx('详情', 'Details'),
+              onPress: busy ? null : () => onAction(app, 'details'),
+            ),
+            FPopoverMenu(
+              menuAnchor: .topLeft,
+              childAnchor: .bottomLeft,
+              menuBuilder: (context, controller, _) => [
+                FItemGroup(
+                  children: [
+                    for (final (label, action) in [
+                      (
+                        app.enabled
+                            ? context.tx('停用', 'Disable')
+                            : context.tx('启用', 'Enable'),
+                        app.enabled ? 'disable' : 'enable',
+                      ),
+                      (context.tx('停止', 'Stop'), 'stop'),
+                      (context.tx('授予权限', 'Grant'), 'grant'),
+                      (context.tx('撤销权限', 'Revoke'), 'revoke'),
+                      (context.tx('卸载', 'Uninstall'), 'uninstall'),
+                    ])
+                      FItem(
+                        title: Text(label),
+                        variant: action == 'uninstall'
+                            ? .destructive
+                            : .primary,
+                        onPress: busy
+                            ? null
+                            : () async {
+                                await controller.hide();
+                                await onAction(app, action);
+                              },
+                      ),
+                  ],
+                ),
+              ],
+              builder: (context, controller, _) => ToolButton(
+                context.tx('更多', 'More'),
+                icon: FLucideIcons.ellipsis,
+                onPress: busy ? null : controller.toggle,
               ),
-              (context.tx('停止', 'Stop'), 'stop'),
-              (context.tx('授予权限', 'Grant'), 'grant'),
-              (context.tx('撤销权限', 'Revoke'), 'revoke'),
-              (context.tx('卸载', 'Uninstall'), 'uninstall'),
-            ])
-              ToolButton(
-                label,
-                destructive: action == 'uninstall',
-                onPress: busy ? null : () => onAction(app, action),
-              ),
+            ),
           ],
         ),
       ],
