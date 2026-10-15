@@ -31,7 +31,10 @@ class DaniaApp extends ConsumerWidget {
         data: MediaQuery.of(context).copyWith(
           textScaler: AppTextScaler(
             MediaQuery.textScalerOf(context),
-            settings.fontScale,
+            resolveFontScale(
+              settings.fontScale,
+              MediaQuery.devicePixelRatioOf(context),
+            ),
           ),
         ),
         child: FTheme(

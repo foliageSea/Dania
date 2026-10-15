@@ -28,11 +28,13 @@ class PageContent extends StatelessWidget {
     required this.children,
     this.compact = false,
     this.expandedChild,
+    this.fill = false,
     super.key,
-  });
+  }) : assert(!fill || expandedChild == null);
   final List<Widget> children;
   final bool compact;
   final Widget? expandedChild;
+  final bool fill;
   @override
   Widget build(BuildContext context) {
     final width = MediaQuery.sizeOf(context).width;
@@ -60,7 +62,15 @@ class PageContent extends StatelessWidget {
           alignment: Alignment.topCenter,
           child: ConstrainedBox(
             constraints: const BoxConstraints(maxWidth: 1440),
-            child: expandedChild == null
+            child: fill
+                ? Padding(
+                    padding: EdgeInsets.all(padding),
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.stretch,
+                      children: children,
+                    ),
+                  )
+                : expandedChild == null
                 ? ListView(padding: EdgeInsets.all(padding), children: children)
                 : Padding(
                     padding: EdgeInsets.all(padding),
@@ -131,13 +141,22 @@ class PageHeading extends StatelessWidget {
 }
 
 class Surface extends StatelessWidget {
-  const Surface({required this.child, this.padding = 24, super.key});
+  const Surface({
+    required this.child,
+    this.padding = 24,
+    this.expand = false,
+    super.key,
+  });
   final Widget child;
   final double padding;
+  final bool expand;
   @override
-  Widget build(BuildContext context) => FCard(
-    child: Padding(padding: EdgeInsets.all(padding), child: child),
-  );
+  Widget build(BuildContext context) {
+    final card = FCard(
+      child: Padding(padding: EdgeInsets.all(padding), child: child),
+    );
+    return expand ? SizedBox.expand(child: card) : card;
+  }
 }
 
 class AdaptiveGrid extends StatelessWidget {

@@ -258,6 +258,16 @@ class AppLocalizationsEn extends AppLocalizations {
   String get version => 'Version';
 
   @override
+  String get openSourceLicenses => 'Third-party notices';
+
+  @override
+  String get fonts => 'Font notice';
+
+  @override
+  String get fontNotice =>
+      'This app uses the MiSans font. © Xiaomi Technology Co., Ltd. Used under the MiSans Font Intellectual Property License Agreement.';
+
+  @override
   String get runtimeEnvironment => 'Runtime environment';
 
   @override

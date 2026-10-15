@@ -13,7 +13,9 @@ import 'live_log_controller.dart';
 import 'live_log_text.dart';
 
 class LiveLogsSection extends ConsumerStatefulWidget {
-  const LiveLogsSection({super.key});
+  const LiveLogsSection({this.fill = false, super.key});
+
+  final bool fill;
 
   @override
   ConsumerState<LiveLogsSection> createState() => _LiveLogsSectionState();
@@ -66,6 +68,27 @@ class _LiveLogsSectionState extends ConsumerState<LiveLogsSection> {
     super.dispose();
   }
 
+  Widget _frame(
+    BuildContext context, {
+    required bool compact,
+    required Widget child,
+  }) {
+    final box = Container(
+      decoration: BoxDecoration(
+        border: Border.all(color: context.theme.colors.border),
+        borderRadius: context.theme.style.borderRadius.md,
+      ),
+      clipBehavior: Clip.antiAlias,
+      child: child,
+    );
+    if (widget.fill) return Expanded(child: box);
+    return SizedBox(
+      height: (MediaQuery.sizeOf(context).height * (compact ? 0.6 : 0.45))
+          .clamp(compact ? 280 : 240, 600),
+      child: box,
+    );
+  }
+
   @override
   Widget build(BuildContext context) => ListenableBuilder(
     listenable: _logs,
@@ -75,112 +98,159 @@ class _LiveLogsSectionState extends ConsumerState<LiveLogsSection> {
       final indices = {
         for (var i = 0; i < entries.length; i++) 'live-log-${entries[i].id}': i,
       };
+      final compact = MediaQuery.sizeOf(context).width < 480;
+      final inlineCount =
+          compact && MediaQuery.textScalerOf(context).scale(14) <= 14 * 1.3;
+      final search = FTextField(
+        key: const ValueKey('log-search'),
+        hint: l.searchLogs,
+        control: .managed(onChange: (value) => _logs.setQuery(value.text)),
+      );
+      final level = FSelect<Level>.rich(
+        key: const ValueKey('log-level'),
+        control: .lifted(
+          value: _logs.minimumLevel,
+          onChange: (value) => _logs.setMinimumLevel(value ?? Level.ALL),
+        ),
+        format: (value) => value == Level.ALL ? l.all : '${value.name}+',
+        children: [
+          FSelectItem(title: Text(l.all), value: Level.ALL),
+          for (final value in [
+            Level.FINE,
+            Level.INFO,
+            Level.WARNING,
+            Level.SEVERE,
+            Level.SHOUT,
+          ])
+            FSelectItem(title: Text('${value.name}+'), value: value),
+        ],
+      );
+      final buttons = [
+        FButton(
+          key: const ValueKey('pause-logs'),
+          builder: responsiveButtonContent,
+          mainAxisSize: MainAxisSize.min,
+          variant: .outline,
+          onPress: _logs.togglePaused,
+          prefix: Icon(_logs.paused ? FLucideIcons.play : FLucideIcons.pause),
+          child: Text(_logs.paused ? l.resumeLogs : l.pauseLogs),
+        ),
+        FButton(
+          key: const ValueKey('follow-logs'),
+          builder: responsiveButtonContent,
+          mainAxisSize: MainAxisSize.min,
+          variant: _following ? .primary : .outline,
+          selected: _following,
+          onPress: () {
+            setState(() => _following = !_following);
+            _scheduleFollow();
+          },
+          child: Text(l.autoScrollLogs),
+        ),
+        if (compact) ...[
+          FButton.icon(
+            key: const ValueKey('copy-logs'),
+            variant: .outline,
+            semanticsLabel: l.copyVisibleLogs,
+            onPress: entries.isEmpty ? null : () => _copy(_logs.copyText),
+            child: const Icon(FLucideIcons.copy),
+          ),
+          FButton.icon(
+            key: const ValueKey('clear-logs'),
+            variant: .outline,
+            semanticsLabel: l.clearLogView,
+            onPress: _logs.clearView,
+            child: const Icon(FLucideIcons.eraser),
+          ),
+        ] else ...[
+          FButton(
+            key: const ValueKey('copy-logs'),
+            builder: responsiveButtonContent,
+            mainAxisSize: MainAxisSize.min,
+            variant: .outline,
+            onPress: entries.isEmpty ? null : () => _copy(_logs.copyText),
+            child: Text(l.copyVisibleLogs),
+          ),
+          FButton(
+            key: const ValueKey('clear-logs'),
+            builder: responsiveButtonContent,
+            mainAxisSize: MainAxisSize.min,
+            variant: .outline,
+            onPress: _logs.clearView,
+            child: Text(l.clearLogView),
+          ),
+        ],
+      ];
+      final count = Text(
+        l.logEntryCount(entries.length),
+        key: const ValueKey('log-entry-count'),
+        textAlign: TextAlign.right,
+        style: context.theme.typography.body.xs.copyWith(
+          color: context.theme.colors.mutedForeground,
+        ),
+      );
       return Column(
         crossAxisAlignment: CrossAxisAlignment.stretch,
         children: [
-          const SizedBox(height: 20),
-          LayoutBuilder(
-            builder: (context, constraints) {
-              final search = FTextField(
-                key: const ValueKey('log-search'),
-                hint: l.searchLogs,
-                control: .managed(
-                  onChange: (value) => _logs.setQuery(value.text),
-                ),
-              );
-              final level = FSelect<Level>.rich(
-                key: const ValueKey('log-level'),
-                control: .lifted(
-                  value: _logs.minimumLevel,
-                  onChange: (value) =>
-                      _logs.setMinimumLevel(value ?? Level.ALL),
-                ),
-                format: (value) =>
-                    value == Level.ALL ? l.all : '${value.name}+',
-                children: [
-                  FSelectItem(title: Text(l.all), value: Level.ALL),
-                  for (final value in [
-                    Level.FINE,
-                    Level.INFO,
-                    Level.WARNING,
-                    Level.SEVERE,
-                    Level.SHOUT,
-                  ])
-                    FSelectItem(title: Text('${value.name}+'), value: value),
-                ],
-              );
-              if (constraints.maxWidth < 480) {
-                return Column(
-                  children: [search, const SizedBox(height: 8), level],
-                );
-              }
-              return Row(
-                children: [
-                  Expanded(child: search),
-                  const SizedBox(width: 12),
-                  SizedBox(width: 160, child: level),
-                ],
-              );
-            },
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            crossAxisAlignment: WrapCrossAlignment.center,
-            children: [
-              FButton(
-                key: const ValueKey('pause-logs'),
-                builder: responsiveButtonContent,
-                mainAxisSize: MainAxisSize.min,
-                variant: .outline,
-                onPress: _logs.togglePaused,
-                prefix: Icon(
-                  _logs.paused ? FLucideIcons.play : FLucideIcons.pause,
-                ),
-                child: Text(_logs.paused ? l.resumeLogs : l.pauseLogs),
-              ),
-              FButton(
-                key: const ValueKey('follow-logs'),
-                builder: responsiveButtonContent,
-                mainAxisSize: MainAxisSize.min,
-                variant: _following ? .primary : .outline,
-                selected: _following,
-                onPress: () {
-                  setState(() => _following = !_following);
-                  _scheduleFollow();
-                },
-                child: Text(l.autoScrollLogs),
-              ),
-              FButton(
-                key: const ValueKey('copy-logs'),
-                builder: responsiveButtonContent,
-                mainAxisSize: MainAxisSize.min,
-                variant: .outline,
-                onPress: entries.isEmpty ? null : () => _copy(_logs.copyText),
-                child: Text(l.copyVisibleLogs),
-              ),
-              FButton(
-                key: const ValueKey('clear-logs'),
-                builder: responsiveButtonContent,
-                mainAxisSize: MainAxisSize.min,
-                variant: .outline,
-                onPress: _logs.clearView,
-                child: Text(l.clearLogView),
-              ),
-              Text(l.logEntryCount(entries.length)),
-            ],
-          ),
-          const SizedBox(height: 12),
-          Container(
-            height: (MediaQuery.sizeOf(context).height * 0.45).clamp(240, 600),
-            decoration: BoxDecoration(
-              border: Border.all(color: context.theme.colors.border),
-              borderRadius: context.theme.style.borderRadius.md,
+          SizedBox(height: compact ? 12 : 20),
+          if (compact)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Expanded(child: search),
+                const SizedBox(width: 8),
+                SizedBox(width: 120, child: level),
+              ],
+            )
+          else
+            Row(
+              children: [
+                Expanded(child: search),
+                const SizedBox(width: 12),
+                SizedBox(width: 160, child: level),
+              ],
             ),
-            clipBehavior: Clip.antiAlias,
+          const SizedBox(height: 12),
+          if (inlineCount)
+            Row(
+              crossAxisAlignment: CrossAxisAlignment.center,
+              children: [
+                Expanded(
+                  child: Wrap(
+                    spacing: 8,
+                    runSpacing: 8,
+                    crossAxisAlignment: WrapCrossAlignment.center,
+                    children: buttons,
+                  ),
+                ),
+                const SizedBox(width: 8),
+                count,
+              ],
+            )
+          else ...[
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              crossAxisAlignment: WrapCrossAlignment.center,
+              children: buttons,
+            ),
+            const SizedBox(height: 8),
+            count,
+          ],
+          const SizedBox(height: 8),
+          _frame(
+            context,
+            compact: compact,
             child: entries.isEmpty
-                ? Center(child: Text(l.noLiveLogs))
+                ? Center(
+                    child: Icon(
+                      FLucideIcons.inbox,
+                      key: const ValueKey('empty-logs-icon'),
+                      size: 32,
+                      color: context.theme.colors.mutedForeground,
+                      semanticLabel: l.noLiveLogs,
+                    ),
+                  )
                 : NotificationListener<ScrollMetricsNotification>(
                     onNotification: (notification) {
                       // Lazy variable-height rows refine their extent as they
@@ -210,18 +280,37 @@ class _LiveLogsSectionState extends ConsumerState<LiveLogsSection> {
                             key is ValueKey<String> ? indices[key.value] : null,
                         itemBuilder: (context, index) {
                           final entry = entries[index];
+                          final decoration = BoxDecoration(
+                            border: Border(
+                              bottom: BorderSide(
+                                color: context.theme.colors.border,
+                              ),
+                            ),
+                          );
+                          if (compact) {
+                            return GestureDetector(
+                              key: ValueKey('live-log-${entry.id}'),
+                              behavior: HitTestBehavior.opaque,
+                              onLongPress: () {
+                                HapticFeedback.selectionClick();
+                                _copy(entry.text);
+                              },
+                              child: Container(
+                                padding: const EdgeInsets.symmetric(
+                                  horizontal: 10,
+                                  vertical: 8,
+                                ),
+                                decoration: decoration,
+                                child: LiveLogText(entry: entry, compact: true),
+                              ),
+                            );
+                          }
                           return Container(
                             key: ValueKey('live-log-${entry.id}'),
                             padding: const EdgeInsets.all(12),
-                            decoration: BoxDecoration(
-                              border: Border(
-                                bottom: BorderSide(
-                                  color: context.theme.colors.border,
-                                ),
-                              ),
-                            ),
+                            decoration: decoration,
                             child: Row(
-                              crossAxisAlignment: CrossAxisAlignment.start,
+                              crossAxisAlignment: CrossAxisAlignment.center,
                               children: [
                                 Expanded(child: LiveLogText(entry: entry)),
                                 FButton.icon(

@@ -256,6 +256,16 @@ class AppLocalizationsZh extends AppLocalizations {
   String get version => '版本';
 
   @override
+  String get openSourceLicenses => '第三方开源声明';
+
+  @override
+  String get fonts => '字体声明';
+
+  @override
+  String get fontNotice =>
+      '本应用使用 MiSans 字体，© 小米科技有限责任公司，遵循《MiSans 字体知识产权许可协议》。';
+
+  @override
   String get runtimeEnvironment => '运行环境';
 
   @override

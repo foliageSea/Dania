@@ -20,6 +20,8 @@ extension AppThemePalette on AppThemeColor {
   }
 }
 
+const appFontFamily = 'MiSans';
+
 FThemeData createAppTheme(
   AppSettings settings, {
   required Brightness brightness,
@@ -38,7 +40,12 @@ FThemeData createAppTheme(
       systemNavigationBarContrastEnforced: false,
     ),
   );
-  final typography = FTypography.inherit(colors: colors, touch: touch);
+  final typeface = FTypeface.inherit(
+    colors: colors,
+    touch: touch,
+    fontFamily: appFontFamily,
+  );
+  final typography = FTypography(display: typeface, body: typeface);
   final radii = const FBorderRadius().scale(settings.radiusScale);
   final style =
       FStyle.inherit(

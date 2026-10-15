@@ -590,6 +590,24 @@ abstract class AppLocalizations {
   /// **'Version'**
   String get version;
 
+  /// No description provided for @openSourceLicenses.
+  ///
+  /// In en, this message translates to:
+  /// **'Third-party notices'**
+  String get openSourceLicenses;
+
+  /// No description provided for @fonts.
+  ///
+  /// In en, this message translates to:
+  /// **'Font notice'**
+  String get fonts;
+
+  /// No description provided for @fontNotice.
+  ///
+  /// In en, this message translates to:
+  /// **'This app uses the MiSans font. © Xiaomi Technology Co., Ltd. Used under the MiSans Font Intellectual Property License Agreement.'**
+  String get fontNotice;
+
   /// No description provided for @runtimeEnvironment.
   ///
   /// In en, this message translates to:
