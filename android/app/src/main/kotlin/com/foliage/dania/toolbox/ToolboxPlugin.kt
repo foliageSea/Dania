@@ -38,6 +38,7 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
     private val devices = ConcurrentHashMap<String, Map<String, Any>>()
     private val operations = ConcurrentHashMap<String, Closeable>()
     private val mirrors = ConcurrentHashMap<String, ScrcpySession>()
+    private val terminals = ConcurrentHashMap<String, TerminalConnection>()
     private val cancelled = ConcurrentHashMap.newKeySet<String>()
     private val methods = MethodChannel(engine.dartExecutor.binaryMessenger, "dania/toolbox")
     private val events = EventChannel(engine.dartExecutor.binaryMessenger, "dania/toolbox/events")
@@ -47,7 +48,7 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
     private var pendingExport: Pair<File, MethodChannel.Result>? = null
     private var binding: CompletableFuture<IPrivilegedService>? = null
     private val serviceArgs = Shizuku.UserServiceArgs(ComponentName(activity, PrivilegedService::class.java))
-        .processNameSuffix("toolbox").tag("dania-toolbox").version(2).daemon(false).debuggable(false)
+        .processNameSuffix("toolbox").tag("dania-toolbox").version(3).daemon(false).debuggable(false)
 
     private val connection = object : ServiceConnection {
         override fun onServiceConnected(name: ComponentName?, binder: IBinder?) {
@@ -58,6 +59,7 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
         override fun onServiceDisconnected(name: ComponentName?) {
             service = null
             binding = null
+            closeTerminals("local", "disconnected")
             emit(mapOf("type" to "devices"))
         }
     }
@@ -66,6 +68,7 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
         service = null
         binding?.completeExceptionally(IllegalStateException("Shizuku disconnected"))
         binding = null
+        closeTerminals("local", "disconnected")
         emit(mapOf("type" to "shizuku"))
         emit(mapOf("type" to "devices"))
     }
@@ -99,6 +102,7 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
 
     private fun handle(call: MethodCall, result: MethodChannel.Result) {
         if (closed) { result.error("disconnected", "Toolbox closed", null); return }
+        if (handleTerminal(call, result)) return
         if (call.method == "exportFile") {
             try {
                 check(pendingExport == null) { "Another save dialog is open" }
@@ -226,6 +230,83 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
         }
     }
 
+    private fun handleTerminal(call: MethodCall, result: MethodChannel.Result): Boolean {
+        if (call.method !in setOf("openTerminal", "writeTerminal", "resizeTerminal", "closeTerminal", "ackTerminal")) return false
+        try {
+            val id = text(call, "sessionId")
+            require(id.length in 1..128)
+            when (call.method) {
+                "openTerminal" -> {
+                    val device = text(call, "deviceId")
+                    val columns = number(call, "columns")
+                    val rows = number(call, "rows")
+                    Protocols.terminalSize(columns, rows)
+                    check(!terminals.containsKey(id)) { "Terminal already exists" }
+                    val connection = TerminalConnection(device, id, ::emit) { terminals.remove(id) }
+                    // Register on the channel thread, before asynchronous startup, so
+                    // a close arriving during connect cannot miss the new session.
+                    terminals[id] = connection
+                    workers.execute {
+                        var transport: TerminalTransport? = null
+                        var started = false
+                        try {
+                            transport = if (device == "local") {
+                                val service = local()
+                                val descriptor = service.openTerminal(id, columns, rows,
+                                    File(activity.applicationInfo.nativeLibraryDir, "libdania_pty.so").absolutePath)
+                                LocalTerminalTransport(service, id, descriptor)
+                            } else AdbTerminalTransport(backend(device).terminal())
+                            connection.attach(transport)
+                            transport.resize(columns, rows)
+                            started = true
+                            main.post { result.success(null) }
+                            val exit = connection.read()
+                            connection.finish("exited", exit)
+                        } catch (error: Throwable) {
+                            // JNI loading failures must also be reported as startup errors.
+                            if (!started) main.post { result.error("terminal", error.message ?: "Terminal failed", null) }
+                            connection.finish("failed", error = error.message ?: "Terminal failed")
+                        } finally {
+                            runCatching { transport?.close() }
+                        }
+                    }
+                }
+                "closeTerminal" -> {
+                    val connection = terminals[id]
+                    if (connection == null) result.success(null)
+                    else workers.execute { connection.finish("closed"); main.post { result.success(null) } }
+                }
+                "ackTerminal" -> {
+                    terminals[id]?.acknowledge(number(call, "sequence"))
+                    result.success(null)
+                }
+                else -> {
+                    val connection = terminals[id] ?: throw IllegalStateException("Terminal is closed")
+                    val bytes = if (call.method == "writeTerminal") {
+                        (call.argument<ByteArray>("bytes") ?: throw IllegalArgumentException("Missing bytes"))
+                            .also { require(it.size <= 16384) }
+                    } else null
+                    val columns = number(call, "columns")
+                    val rows = number(call, "rows")
+                    if (bytes == null) Protocols.terminalSize(columns, rows)
+                    connection.enqueue({ transport ->
+                        if (bytes != null) transport.write(bytes) else transport.resize(columns, rows)
+                    }) { error -> main.post {
+                        if (error == null) result.success(null)
+                        else result.error("terminal", error.message, null)
+                    } }
+                }
+            }
+        } catch (error: Exception) { result.error("terminal", error.message, null) }
+        return true
+    }
+
+    private fun closeTerminals(device: String, reason: String) {
+        terminals.values.filter { it.device == device }.forEach { connection ->
+            workers.execute { connection.finish(reason) }
+        }
+    }
+
     private fun status(): Map<String, Any?> {
         val running = Shizuku.pingBinder()
         return mapOf("supported" to true, "running" to running,
@@ -276,6 +357,7 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
         ?: throw IllegalStateException("ADB device disconnected")
 
     private fun disconnect(id: String) {
+        closeTerminals(id, "disconnected")
         stopMirror(id)
         if (id == "local") {
             main.post { runCatching { Shizuku.unbindUserService(serviceArgs, connection, true) }; service = null; binding = null }
@@ -542,6 +624,8 @@ class ToolboxPlugin(private val activity: Activity, private val engine: FlutterE
         Shizuku.removeBinderDeadListener(dead)
         Shizuku.removeRequestPermissionResultListener(permission)
         stopMirrors()
+        terminals.values.toList().forEach { it.finish("closed") }
+        terminals.clear()
         operations.values.forEach { runCatching { it.close() } }
         operations.clear()
         backends.values.forEach { runCatching { it.disconnect() } }

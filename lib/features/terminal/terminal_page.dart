@@ -1,16 +1,15 @@
 import 'dart:async';
-import 'dart:convert';
 
 import 'package:flutter/services.dart';
 import 'package:flutter/widgets.dart';
-import 'package:material_ui/material_ui.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
+import 'package:xterm/xterm.dart';
 
 import '../../core/toolbox/device_state.dart';
 import '../../core/toolbox/toolbox_client.dart';
 import '../../shared/toolbox_widgets.dart';
-import '../../shared/widgets.dart';
+import 'terminal_session.dart';
 
 final commandHistoryProvider = NotifierProvider<CommandHistory, List<String>>(
   CommandHistory.new,
@@ -32,129 +31,88 @@ class TerminalPage extends ConsumerStatefulWidget {
 }
 
 class _TerminalPageState extends ConsumerState<TerminalPage> {
+  late final TerminalSession _session;
+  final _view = GlobalKey<TerminalViewState>();
+  final _selection = TerminalController();
+  final _focus = FocusNode();
   final _command = TextEditingController();
-  final _scroll = ScrollController();
-  late final ToolboxClient _client;
-  StreamSubscription<Map<Object?, Object?>>? _subscription;
-  final Map<bool, StreamController<List<int>>> _decoders = {};
-  Timer? _refresh;
-  String _output = '';
-  String? _operation;
-  Object? _error;
-  bool _follow = true;
+  String? _selected;
+  bool _ctrl = false;
+  bool _commands = false;
 
   @override
   void initState() {
     super.initState();
-    _client = ref.read(toolboxProvider);
-    _subscription = _client.events.listen(
-      _onEvent,
-      onError: (Object error) {
-        if (mounted)
-          setState(() {
-            _error = error;
-            _operation = null;
-          });
-      },
-    );
+    _session = TerminalSession(ref.read(toolboxProvider));
+    _session.terminal.onOutput = (data) {
+      if (_ctrl && data.runes.length == 1) {
+        final code = data.codeUnitAt(0);
+        if (code >= 64 && code <= 127) data = String.fromCharCode(code & 31);
+        setState(() => _ctrl = false);
+      }
+      _session.send(data);
+    };
   }
 
-  void _append(String value) {
-    _output += value;
-    if (_output.length > 128 * 1024) {
-      _output = _output.substring(_output.length - 128 * 1024);
-    }
-    _refresh ??= Timer(const Duration(milliseconds: 80), () {
-      _refresh = null;
-      if (!mounted) return;
-      setState(() {});
-      if (_follow)
-        WidgetsBinding.instance.addPostFrameCallback((_) {
-          if (mounted && _scroll.hasClients)
-            _scroll.jumpTo(_scroll.position.maxScrollExtent);
-        });
-    });
-  }
-
-  void _onEvent(Map<Object?, Object?> event) {
-    if (event['type'] != 'command' || event['id'] != _operation) return;
-    if (event['text'] case final String value) _append(value);
-    if (event['bytes'] case final List<int> bytes) {
-      final stderr = event['stderr'] == true;
-      final decoder = _decoders.putIfAbsent(stderr, () {
-        final controller = StreamController<List<int>>();
-        controller.stream
-            .transform(const Utf8Decoder(allowMalformed: true))
-            .listen(_append);
-        return controller;
-      });
-      decoder.add(bytes);
-    }
-    if (event.containsKey('exitCode') || event.containsKey('error')) {
-      unawaited(_finish(event));
+  void _select(String? device) {
+    if (_selected == device) return;
+    _selected = device;
+    _ctrl = false;
+    _selection.clearSelection();
+    if (device == null) {
+      _session.disconnect();
+    } else {
+      unawaited(_session.connect(device));
     }
   }
 
-  Future<void> _finish(Map<Object?, Object?> event) async {
-    final id = _operation;
-    final decoders = _decoders.values.toList();
-    _decoders.clear();
-    for (final decoder in decoders) {
-      await decoder.close();
-    }
-    if (!mounted || id != _operation) return;
-    final message = event['cancelled'] == true
-        ? context.tx('已取消', 'Cancelled')
-        : event['error'] != null
-        ? '${event['error']}'
-        : '${context.tx('退出码', 'Exit code')}: ${event['exitCode']}';
-    _append('\n[$message]\n');
-    setState(() => _operation = null);
+  void _key(TerminalKey key) {
+    _session.terminal.keyInput(key, ctrl: _ctrl);
+    if (_ctrl) setState(() => _ctrl = false);
   }
 
-  Future<void> _run() async {
-    final device = ref.read(activeDeviceProvider);
-    final command = _command.text.trim();
-    if (device == null || command.isEmpty || _operation != null) return;
-    final id = newOperationId();
-    setState(() {
-      _operation = id;
-      _error = null;
-    });
-    _append('\n[${device.name}] \$ $command\n');
+  void _insert(String command) {
+    _session.terminal.paste(command);
     ref.read(commandHistoryProvider.notifier).add(command);
     _command.clear();
-    try {
-      await _client.command(device.id, id, command);
-    } catch (error) {
-      if (mounted)
-        setState(() {
-          _error = error;
-          _operation = null;
-        });
+    _focus.requestFocus();
+  }
+
+  Future<void> _paste() async {
+    final id = _session.sessionId;
+    final data = await Clipboard.getData(Clipboard.kTextPlain);
+    if (mounted &&
+        _session.running &&
+        id == _session.sessionId &&
+        data?.text != null) {
+      _session.terminal.paste(data!.text!);
+      _focus.requestFocus();
     }
   }
 
-  Future<void> _cancel() async {
-    final id = _operation;
-    if (id == null) return;
-    try {
-      await _client.cancel(id);
-    } catch (error) {
-      if (mounted) setState(() => _error = error);
-    }
-  }
+  String _status(BuildContext context) => switch (_session.phase) {
+    TerminalPhase.idle => context.tx(
+      '选择设备以连接终端',
+      'Select a device to open a terminal',
+    ),
+    TerminalPhase.starting => context.tx('正在连接…', 'Connecting…'),
+    TerminalPhase.running => context.tx('已连接', 'Connected'),
+    TerminalPhase.closing => context.tx('正在断开…', 'Disconnecting…'),
+    TerminalPhase.failed => context.tx(
+      '连接失败，可重新连接',
+      'Connection failed. Reconnect to retry.',
+    ),
+    TerminalPhase.exited =>
+      _session.exitCode != null
+          ? '${context.tx('退出码', 'Exit code')}: ${_session.exitCode}'
+          : context.tx('会话已断开', 'Session disconnected'),
+  };
 
   @override
   void dispose() {
-    if (_operation != null)
-      unawaited(_client.cancel(_operation!).catchError((Object _) {}));
-    _subscription?.cancel();
-    for (final controller in _decoders.values) {
-      controller.close();
-    }
-    _refresh?.cancel();
-    _scroll.dispose();
+    _session.dispose();
+    _selection.dispose();
+    _focus.dispose();
     _command.dispose();
     super.dispose();
   }
@@ -162,132 +120,202 @@ class _TerminalPageState extends ConsumerState<TerminalPage> {
   @override
   Widget build(BuildContext context) {
     final active = ref.watch(activeDeviceProvider);
+    ref.listen(activeDeviceProvider, (_, next) => _select(next?.id));
+    if (_selected != active?.id) {
+      WidgetsBinding.instance.addPostFrameCallback((_) {
+        if (mounted) _select(ref.read(activeDeviceProvider)?.id);
+      });
+    }
     final history = ref.watch(commandHistoryProvider);
-    return ToolPage(
-      title: context.tx('终端', 'Terminal'),
-      children: [
-        const DevicePicker(),
-        if (_error != null) ToolErrorNotice(_error!),
-        if (active == null && _operation == null) const SelectDeviceNotice(),
-        Surface(
-          padding: 12,
-          child: Column(
-            crossAxisAlignment: .stretch,
-            children: [
-              SizedBox(
-                height: (MediaQuery.sizeOf(context).height * .38).clamp(
-                  200.0,
-                  420.0,
+    return ListenableBuilder(
+      listenable: _session,
+      builder: (context, _) => ToolPage(
+        title: context.tx('终端', 'Terminal'),
+        expandedChild: Column(
+          children: [
+            Expanded(
+              child: ClipRRect(
+                borderRadius: BorderRadius.circular(8),
+                child: TerminalView(
+                  _session.terminal,
+                  key: _view,
+                  controller: _selection,
+                  focusNode: _focus,
+                  readOnly: !_session.running,
+                  keyboardType: TextInputType.text,
+                  deleteDetection: true,
+                  padding: const EdgeInsets.all(8),
+                  textStyle: const TerminalStyle(
+                    fontSize: 13,
+                    fontFamily: 'monospace',
+                  ),
                 ),
-                child: NotificationListener<ScrollNotification>(
-                  onNotification: (event) {
-                    if (event is UserScrollNotification)
-                      _follow = event.metrics.extentAfter < 24;
-                    return false;
-                  },
-                  child: SingleChildScrollView(
-                    controller: _scroll,
-                    child: SelectableText(
-                      _output.isEmpty ? '\$' : _output,
-                      style: context.theme.typography.body.sm.copyWith(
-                        fontFamily: 'monospace',
-                        height: 1.5,
+              ),
+            ),
+            const SizedBox(height: 8),
+            SingleChildScrollView(
+              scrollDirection: Axis.horizontal,
+              child: Row(
+                spacing: 6,
+                children: [
+                  for (final entry in <(String, TerminalKey)>[
+                    ('Esc', TerminalKey.escape),
+                    ('Tab', TerminalKey.tab),
+                    ('↑', TerminalKey.arrowUp),
+                    ('↓', TerminalKey.arrowDown),
+                    ('←', TerminalKey.arrowLeft),
+                    ('→', TerminalKey.arrowRight),
+                  ])
+                    ToolButton(
+                      entry.$1,
+                      onPress: _session.running ? () => _key(entry.$2) : null,
+                    ),
+                  FButton(
+                    size: .sm,
+                    variant: _ctrl ? .primary : .outline,
+                    onPress: _session.running
+                        ? () => setState(() => _ctrl = !_ctrl)
+                        : null,
+                    child: const Text('Ctrl'),
+                  ),
+                  ToolButton(
+                    'Ctrl+C',
+                    onPress: _session.running
+                        ? () => _session.send('\x03')
+                        : null,
+                  ),
+                  ToolButton(
+                    'Ctrl+D',
+                    onPress: _session.running
+                        ? () => _session.send('\x04')
+                        : null,
+                  ),
+                  ToolButton(
+                    'Enter',
+                    onPress: _session.running
+                        ? () => _key(TerminalKey.enter)
+                        : null,
+                  ),
+                ],
+              ),
+            ),
+          ],
+        ),
+        children: [
+          const DevicePicker(),
+          if (_session.error != null) ToolErrorNotice(_session.error!),
+          Row(
+            children: [
+              Expanded(child: Text(_status(context))),
+              if (_session.connected)
+                ToolButton(
+                  context.tx('断开', 'Disconnect'),
+                  onPress: _session.disconnect,
+                )
+              else
+                ToolButton(
+                  context.tx('重新连接', 'Reconnect'),
+                  onPress: active == null
+                      ? null
+                      : () => _session.connect(active.id),
+                ),
+            ],
+          ),
+          if (_session.phase == TerminalPhase.starting) ...[
+            const SizedBox(height: 8),
+            const FProgress(),
+          ],
+          const SizedBox(height: 8),
+          SingleChildScrollView(
+            scrollDirection: Axis.horizontal,
+            child: Row(
+              spacing: 8,
+              children: [
+                ToolButton(
+                  context.tx('键盘', 'Keyboard'),
+                  icon: FLucideIcons.keyboard,
+                  onPress: _session.running
+                      ? () {
+                          _focus.requestFocus();
+                          _view.currentState?.requestKeyboard();
+                        }
+                      : null,
+                ),
+                ToolButton(
+                  context.tx('粘贴', 'Paste'),
+                  onPress: _session.running ? _paste : null,
+                ),
+                ToolButton(
+                  context.tx('复制选区/输出', 'Copy selection/output'),
+                  onPress: () => Clipboard.setData(
+                    ClipboardData(
+                      text: _session.terminal.buffer.getText(
+                        _selection.selection,
                       ),
                     ),
                   ),
                 ),
-              ),
-              const SizedBox(height: 12),
-              ToolControls(
-                breakpoint: 820,
-                content: ToolInput(
-                  label: context.tx('命令', 'Command'),
-                  controller: _command,
-                  enabled: _operation == null,
-                  hint: 'getprop ro.product.model',
-                  onSubmit: (_) => _run(),
+                ToolButton(
+                  context.tx('清空显示', 'Clear display'),
+                  onPress: _session.clear,
                 ),
-                actions: Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    ToolButton(
-                      context.tx('执行', 'Run'),
-                      icon: FLucideIcons.play,
-                      onPress: active == null || _operation != null
-                          ? null
-                          : _run,
-                    ),
-                    if (_operation != null)
-                      ToolButton(
-                        context.tx('停止', 'Stop'),
-                        icon: FLucideIcons.square,
-                        onPress: _cancel,
-                      ),
-                    ToolButton(
-                      context.tx('复制输出', 'Copy output'),
-                      icon: FLucideIcons.copy,
-                      onPress: _output.isEmpty
-                          ? null
-                          : () =>
-                                Clipboard.setData(ClipboardData(text: _output)),
-                    ),
-                    ToolButton(
-                      context.tx('清空', 'Clear'),
-                      onPress: () => setState(() => _output = ''),
-                    ),
-                  ],
+                ToolButton(
+                  context.tx('快捷命令', 'Commands'),
+                  onPress: () => setState(() => _commands = !_commands),
                 ),
-              ),
-              if (_operation != null) ...[
-                const SizedBox(height: 12),
-                const FProgress(),
               ],
-            ],
+            ),
           ),
-        ),
-        const SizedBox(height: 12),
-        Wrap(
-          spacing: 8,
-          runSpacing: 8,
-          children: [
-            for (final command in [
-              'id',
-              'getprop',
-              'df -h',
-              'pm list packages',
-              'dumpsys battery',
-            ])
-              ToolButton(
-                command,
-                onPress: _operation == null
-                    ? () => _command.text = command
+          if (_commands) ...[
+            const SizedBox(height: 8),
+            ToolControls(
+              content: ToolInput(
+                label: context.tx(
+                  '插入命令（不会自动执行）',
+                  'Insert command (does not execute)',
+                ),
+                controller: _command,
+                enabled: _session.running,
+                onSubmit: (_) {
+                  if (_session.running && _command.text.isNotEmpty) {
+                    _insert(_command.text);
+                  }
+                },
+              ),
+              actions: ToolButton(
+                context.tx('插入', 'Insert'),
+                onPress: _session.running
+                    ? () {
+                        if (_command.text.isNotEmpty) _insert(_command.text);
+                      }
                     : null,
               ),
+            ),
+            const SizedBox(height: 8),
+            Wrap(
+              spacing: 8,
+              runSpacing: 8,
+              children: [
+                for (final command in {
+                  ...[
+                    'id',
+                    'getprop',
+                    'df -h',
+                    'pm list packages',
+                    'dumpsys battery',
+                  ],
+                  ...history,
+                })
+                  ToolButton(
+                    command,
+                    onPress: _session.running ? () => _insert(command) : null,
+                  ),
+              ],
+            ),
           ],
-        ),
-        if (history.isNotEmpty) ...[
-          const SizedBox(height: 20),
-          Text(
-            context.tx('本次会话历史', 'Session history'),
-            style: context.theme.typography.body.lg,
-          ),
-          const SizedBox(height: 12),
-          Wrap(
-            spacing: 8,
-            runSpacing: 8,
-            children: [
-              for (final command in history)
-                ToolButton(
-                  command,
-                  onPress: _operation == null
-                      ? () => _command.text = command
-                      : null,
-                ),
-            ],
-          ),
+          const SizedBox(height: 8),
         ],
-      ],
+      ),
     );
   }
 }

@@ -7,7 +7,7 @@
 - Shizuku 运行状态、授权和本机 Shell 操作
 - 无线 ADB 配对、TLS/TCP 连接和连接管理
 - ADB 密钥使用 Android Keystore 加密保存
-- 远端终端：实时输出、停止、历史和快捷命令
+- 交互式终端：ADB / Shizuku PTY、持久 Shell、ANSI、全屏程序、软键盘和辅助按键
 - 应用管理：搜索、详情、启停用、权限授予/撤销、卸载和 APK 安装
 - 文件管理：目录浏览、上传、下载、另存为、新建目录、重命名和删除
 - scrcpy 5.0.1：H.264 投屏、触控、返回/主页/最近任务/音量按键
@@ -51,6 +51,27 @@ fvm flutter analyze --no-fatal-infos
 4. 投屏使用内置 scrcpy server，不需要在远端设备安装额外应用。
 
 ADB shell 权限不等于 root，部分系统路径和应用私有数据仍不可访问。scrcpy 协议客户端和 server 固定为 5.0.1，升级时需要同步协议实现和内置 server。
+
+## 交互式终端
+
+在工具页打开终端并选择设备，会自动启动持久 Shell。连续执行命令时保留工作目录和环境变量，可使用 Tab 补全、方向键历史、Ctrl+C、Ctrl+D，以及 top 等终端程序。软键盘、旋转及可用空间变化会更新远端终端行列数。
+
+底部辅助栏提供 Esc、Tab、方向键、一次性 Ctrl 修饰键和 Enter。Ctrl+C 中断前台任务；“断开”结束整个 Shell；“清空显示”只清除本地屏幕。可长按选择文字后复制选区，未选择时复制缓冲区。快捷命令面板与最多 30 条本次历史仅插入内容，按 Enter 才执行，不从原始按键流记录交互输入。
+
+同一时间使用一个活动会话。切换设备或离开终端页会关闭旧会话，切到系统后台时保留；系统杀死应用后不恢复。自然退出、连接失败或设备断线后手动重新连接，不自动重放输入。启动超时为 30 秒，运行中没有固定超时。
+
+输出保留最多 5000 行，按 UTF-8 增量解码；输入队列最多 256 KiB，每批最多 16 KiB。原生输出使用 8 个确认额度限制在途数据。终端输入输出不写入应用日志。
+
+Shizuku 终端使用随应用打包的 JNI PTY 库，以 Shizuku 的 shell/root 身份运行系统 Shell；ADB 使用 Shell v2 PTY。PTY 不可用时会报告失败，不降级为普通命令管道。其他工具仍使用原有单次命令接口。
+
+真机集成测试需要已运行并授权 Dania 的 Shizuku。测试 ADB 时还需该设备已信任 Dania 的 ADB 密钥，并传入其无线连接端点：
+
+```sh
+fvm flutter test integration_test/terminal_integration_test.dart -d <device-id> \
+  --dart-define=TERMINAL_ADB_HOST=<host> --dart-define=TERMINAL_ADB_PORT=<port>
+```
+
+集成测试检查身份、目录保持、中文连续输入、ANSI、补全、历史、Ctrl+C、top、窗口尺寸、自然退出和重连。测试会安装测试入口应用；Flutter 工具在安装失败时会自动尝试卸载重装，因此应使用专用测试设备。完成后需重新安装正常入口的构建。
 
 ## 模板同步
 

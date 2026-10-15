@@ -1,0 +1,6 @@
+cmake_minimum_required(VERSION 3.22.1)
+project(dania_pty LANGUAGES CXX)
+add_library(dania_pty SHARED pty.cpp)
+target_compile_features(dania_pty PRIVATE cxx_std_17)
+target_compile_options(dania_pty PRIVATE -Wall -Wextra -Werror)
+target_link_options(dania_pty PRIVATE "-Wl,-z,max-page-size=16384")

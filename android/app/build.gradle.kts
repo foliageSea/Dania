@@ -47,6 +47,9 @@ android {
         }
     }
     buildFeatures { aidl = true }
+    externalNativeBuild { cmake { path = file("src/main/cpp/CMakeLists.txt") } }
+    // Shizuku loads the PTY library from nativeLibraryDir in its own process.
+    packaging { jniLibs { useLegacyPackaging = true } }
 }
 
 dependencies {

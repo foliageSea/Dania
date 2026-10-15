@@ -73,6 +73,29 @@ class ToolboxClient {
         'operationId': id,
         'command': command,
       });
+  Future<void> openTerminal(
+    String device,
+    String session,
+    int columns,
+    int rows,
+  ) => invoke<void>('openTerminal', {
+    'deviceId': device,
+    'sessionId': session,
+    'columns': columns,
+    'rows': rows,
+  });
+  Future<void> writeTerminal(String session, Uint8List bytes) =>
+      invoke<void>('writeTerminal', {'sessionId': session, 'bytes': bytes});
+  Future<void> resizeTerminal(String session, int columns, int rows) =>
+      invoke<void>('resizeTerminal', {
+        'sessionId': session,
+        'columns': columns,
+        'rows': rows,
+      });
+  Future<void> acknowledgeTerminal(String session, int sequence) =>
+      invoke<void>('ackTerminal', {'sessionId': session, 'sequence': sequence});
+  Future<void> closeTerminal(String session) =>
+      invoke<void>('closeTerminal', {'sessionId': session});
   Future<void> cancel(String id) => invoke<void>('cancel', {'operationId': id});
   Future<List<InstalledApp>> apps(String id) async => (await invoke<List>(
     'apps',

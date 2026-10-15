@@ -18,6 +18,9 @@ class AdbBackend(identity: AdbIdentity) : AbsAdbConnectionManager() {
     override fun getCertificate(): Certificate = material.second
     override fun getDeviceName(): String = "Dania"
 
+    fun terminal(): AdbStream =
+        openStream("shell,v2,pty,TERM=xterm-256color:/system/bin/sh -i")
+
     fun command(command: String): AdbStream {
         require(command.length <= 32768 && !command.contains('\u0000'))
         // libadb's OPEN encoder requires ASCII destinations. Decode user UTF-8 on the target.

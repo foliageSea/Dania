@@ -9,3 +9,4 @@
 -keep class com.foliage.dania.toolbox.IPrivilegedService { *; }
 -keep class com.foliage.dania.toolbox.IPrivilegedService$Stub { *; }
 -keep class com.foliage.dania.toolbox.IPrivilegedService$Stub$Proxy { *; }
+-keep class com.foliage.dania.toolbox.NativePty { *; }

@@ -3,6 +3,7 @@ package com.foliage.dania.toolbox
 import java.io.DataInputStream
 import java.io.EOFException
 import java.io.InputStream
+import java.io.OutputStream
 import java.nio.ByteBuffer
 import java.nio.ByteOrder
 
@@ -45,11 +46,25 @@ object Protocols {
             when (kind) {
                 1, 2 -> output(kind, bytes)
                 3 -> {
-                    require(bytes.isNotEmpty())
+                    require(bytes.size == 1) { "Invalid shell exit status" }
                     return bytes[0].toInt() and 255
                 }
             }
         }
+    }
+
+    fun writeShell(output: OutputStream, kind: Int, payload: ByteArray) {
+        require(kind == 0 || kind == 4 || kind == 5) { "Invalid client shell packet" }
+        require(payload.size <= 16384) { "Shell input packet is too large" }
+        output.write(kind)
+        output.write(littleInt(payload.size))
+        output.write(payload)
+        output.flush()
+    }
+
+    fun terminalSize(columns: Int, rows: Int): ByteArray {
+        require(columns in 2..1000 && rows in 1..1000) { "Invalid terminal size" }
+        return (rows.toString() + "x" + columns + "x0x0\u0000").toByteArray(Charsets.US_ASCII)
     }
 
     fun touch(action: Int, pointer: Long, x: Int, y: Int, width: Int, height: Int): ByteArray {
