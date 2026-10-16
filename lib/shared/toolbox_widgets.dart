@@ -2,6 +2,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
+import 'package:material_ui/material_ui.dart' show SelectableText;
 
 import '../core/toolbox/device_state.dart';
 import '../core/toolbox/toolbox_client.dart';
@@ -283,6 +284,45 @@ Future<bool> confirmToolAction(
       ),
     ) ??
     false;
+
+Future<void> showToolDetails(
+  BuildContext context,
+  String title,
+  String content,
+) => showFDialog<void>(
+  context: context,
+  useSafeArea: true,
+  builder: (context, style, animation) => FDialog(
+    animation: animation,
+    builder: (_, _) => Padding(
+      padding: const EdgeInsets.all(24),
+      child: Column(
+        mainAxisSize: .min,
+        crossAxisAlignment: .stretch,
+        children: [
+          Text(title, style: context.theme.typography.body.lg),
+          const SizedBox(height: 12),
+          Flexible(
+            child: SingleChildScrollView(
+              child: SelectableText(
+                content,
+                style: context.theme.typography.body.sm.copyWith(
+                  fontFamily: 'monospace',
+                ),
+              ),
+            ),
+          ),
+          const SizedBox(height: 24),
+          FButton(
+            variant: .outline,
+            onPress: () => Navigator.pop(context),
+            child: Text(context.tx('关闭', 'Close')),
+          ),
+        ],
+      ),
+    ),
+  ),
+);
 
 Future<String?> promptToolInput(
   BuildContext context,

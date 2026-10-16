@@ -31,7 +31,6 @@ class _AppsPageState extends ConsumerState<AppsPage> {
   int _filter = 0;
   bool _busy = false;
   Object? _error;
-  String? _details;
   String? _operation;
   int _done = 0;
   int? _total;
@@ -91,9 +90,10 @@ class _AppsPageState extends ConsumerState<AppsPage> {
         permission: permission,
       );
       if (mounted) {
-        if (action == 'details')
-          setState(() => _details = result);
-        else {
+        if (action == 'details') {
+          setState(() => _busy = false);
+          await showToolDetails(context, app.packageName, result);
+        } else {
           notifyUser(context, context.tx('操作完成', 'Completed'));
           ref.invalidate(appsProvider(device.id));
         }
@@ -294,27 +294,6 @@ class _AppsPageState extends ConsumerState<AppsPage> {
               retry: () => ref.invalidate(appsProvider(device.id)),
             ),
             loading: () => const LoadingNotice(),
-          ),
-        ],
-        if (_details != null) ...[
-          const SizedBox(height: 20),
-          Surface(
-            child: Column(
-              crossAxisAlignment: .stretch,
-              children: [
-                ToolButton(
-                  context.tx('关闭详情', 'Close details'),
-                  onPress: () => setState(() => _details = null),
-                ),
-                const SizedBox(height: 12),
-                SelectableText(
-                  _details!,
-                  style: context.theme.typography.body.sm.copyWith(
-                    fontFamily: 'monospace',
-                  ),
-                ),
-              ],
-            ),
           ),
         ],
       ],
