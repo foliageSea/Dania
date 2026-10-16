@@ -4,7 +4,6 @@ import 'package:forui/forui.dart';
 import 'package:go_router/go_router.dart';
 
 import '../core/toolbox/device_state.dart';
-import '../core/settings/settings.dart';
 import '../shared/toolbox_widgets.dart';
 
 class AppShell extends ConsumerWidget {
@@ -13,7 +12,6 @@ class AppShell extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(toolboxEventsProvider);
-    final settings = ref.watch(settingsProvider);
     final labels = [
       context.tx('概览', 'Overview'),
       context.tx('设备', 'Devices'),
@@ -29,7 +27,7 @@ class AppShell extends ConsumerWidget {
     return LayoutBuilder(
       builder: (context, constraints) {
         final mobile = constraints.maxWidth < 600;
-        final compact = constraints.maxWidth < 1024 || settings.compactSidebar;
+        final compact = constraints.maxWidth < 1024;
         return ColoredBox(
           color: context.theme.colors.background,
           child: SafeArea(

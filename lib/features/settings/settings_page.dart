@@ -230,14 +230,6 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
                               FSelectItem(title: Text(label), value: value),
                           ],
                         ),
-                        const SizedBox(height: 28),
-                        FSwitch(
-                          label: Text(l.compactSidebar),
-                          value: settings.compactSidebar,
-                          enabled: !_saving,
-                          onChange: (value) =>
-                              _update((s) => s.copyWith(compactSidebar: value)),
-                        ),
                       ],
                     ),
                   ),

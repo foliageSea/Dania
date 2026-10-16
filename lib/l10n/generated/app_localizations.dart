@@ -572,12 +572,6 @@ abstract class AppLocalizations {
   /// **'Language'**
   String get language;
 
-  /// No description provided for @compactSidebar.
-  ///
-  /// In en, this message translates to:
-  /// **'Compact sidebar'**
-  String get compactSidebar;
-
   /// No description provided for @about.
   ///
   /// In en, this message translates to:

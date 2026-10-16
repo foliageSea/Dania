@@ -249,9 +249,6 @@ class AppLocalizationsEn extends AppLocalizations {
   String get language => 'Language';
 
   @override
-  String get compactSidebar => 'Compact sidebar';
-
-  @override
   String get about => 'About this template';
 
   @override

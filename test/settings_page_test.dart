@@ -124,48 +124,37 @@ void setView(WidgetTester tester, double width, {double scale = 1}) {
 void main() {
   for (final width in [390.0, 1200.0]) {
     for (final language in ['en', 'zh']) {
-      testWidgets(
-        'general keeps language and sidebar preferences at $width in $language',
-        (tester) async {
-          setView(tester, width);
-          final repository = MemorySettings();
-          final container = appContainer(
-            repository: repository,
-            settings: AppSettings(language: language, compactSidebar: true),
-          );
-          await showApp(tester, container);
-          final general = find.text(language == 'en' ? 'General' : '常规');
-          final appearance = find.text(language == 'en' ? 'Appearance' : '外观');
-          expect(
-            tester.getTopLeft(general).dx,
-            lessThan(tester.getTopLeft(appearance).dx),
-          );
-          expect(find.byKey(const ValueKey('language-select')), findsOneWidget);
-          expect(find.byType(FSwitch), findsOneWidget);
-          expect(tester.widget<FSwitch>(find.byType(FSwitch)).value, isTrue);
-          await tester.tap(find.byType(FSwitch));
-          await tester.pumpAndSettle();
-          expect(container.read(settingsProvider).compactSidebar, isFalse);
-          await tester.tap(find.byKey(const ValueKey('language-select')));
-          await tester.pumpAndSettle();
-          await tester.tap(
-            find.text(language == 'en' ? '简体中文' : 'English').last,
-          );
-          await tester.pumpAndSettle();
-          final next = language == 'en' ? 'zh' : 'en';
-          expect(container.read(settingsProvider).language, next);
-          expect((await repository.load()).language, next);
-          expect((await repository.load()).compactSidebar, isFalse);
-          await choose(tester, find.text(next == 'en' ? 'Appearance' : '外观'));
-          expect(
-            find.byKey(const ValueKey('theme-color-blue')),
-            findsOneWidget,
-          );
-          expect(tester.takeException(), isNull);
-          await tester.pumpWidget(const SizedBox());
-          await tester.pumpAndSettle();
-        },
-      );
+      testWidgets('general keeps language preference at $width in $language', (
+        tester,
+      ) async {
+        setView(tester, width);
+        final repository = MemorySettings();
+        final container = appContainer(
+          repository: repository,
+          settings: AppSettings(language: language),
+        );
+        await showApp(tester, container);
+        final general = find.text(language == 'en' ? 'General' : '常规');
+        final appearance = find.text(language == 'en' ? 'Appearance' : '外观');
+        expect(
+          tester.getTopLeft(general).dx,
+          lessThan(tester.getTopLeft(appearance).dx),
+        );
+        expect(find.byKey(const ValueKey('language-select')), findsOneWidget);
+        expect(find.byType(FSwitch), findsNothing);
+        await tester.tap(find.byKey(const ValueKey('language-select')));
+        await tester.pumpAndSettle();
+        await tester.tap(find.text(language == 'en' ? '简体中文' : 'English').last);
+        await tester.pumpAndSettle();
+        final next = language == 'en' ? 'zh' : 'en';
+        expect(container.read(settingsProvider).language, next);
+        expect((await repository.load()).language, next);
+        await choose(tester, find.text(next == 'en' ? 'Appearance' : '外观'));
+        expect(find.byKey(const ValueKey('theme-color-blue')), findsOneWidget);
+        expect(tester.takeException(), isNull);
+        await tester.pumpWidget(const SizedBox());
+        await tester.pumpAndSettle();
+      });
     }
   }
 

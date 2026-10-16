@@ -13,7 +13,6 @@ class AppSettings {
   const AppSettings({
     this.themeMode = ThemeMode.system,
     this.language = 'system',
-    this.compactSidebar = false,
     this.themeColor = AppThemeColor.neutral,
     this.radiusScale = 1,
     this.fontScale = 1,
@@ -21,7 +20,6 @@ class AppSettings {
        assert(fontScale >= 0.8 && fontScale <= 1.2);
   final ThemeMode themeMode;
   final String language;
-  final bool compactSidebar;
   final AppThemeColor themeColor;
   final double radiusScale;
   final double fontScale;
@@ -29,14 +27,12 @@ class AppSettings {
   AppSettings copyWith({
     ThemeMode? themeMode,
     String? language,
-    bool? compactSidebar,
     AppThemeColor? themeColor,
     double? radiusScale,
     double? fontScale,
   }) => AppSettings(
     themeMode: themeMode ?? this.themeMode,
     language: language ?? this.language,
-    compactSidebar: compactSidebar ?? this.compactSidebar,
     themeColor: themeColor ?? this.themeColor,
     radiusScale: radiusScale ?? this.radiusScale,
     fontScale: fontScale ?? this.fontScale,
@@ -44,7 +40,6 @@ class AppSettings {
   Map<String, Object> toJson() => {
     'theme': themeMode.name,
     'language': language,
-    'compactSidebar': compactSidebar,
     'themeColor': themeColor.name,
     'radiusScale': radiusScale,
     'fontScale': fontScale,
@@ -57,7 +52,6 @@ class AppSettings {
     language: ['zh', 'en'].contains(json['language'])
         ? json['language'] as String
         : 'system',
-    compactSidebar: json['compactSidebar'] == true,
     themeColor: AppThemeColor.values.firstWhere(
       (value) => value.name == json['themeColor'],
       orElse: () => AppThemeColor.neutral,
