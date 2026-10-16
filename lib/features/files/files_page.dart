@@ -293,31 +293,36 @@ class _FilesPageState extends ConsumerState<FilesPage> {
         : ref.watch(filesProvider((device.id, _directory)));
     return ToolPage(
       title: context.tx('文件管理', 'Files'),
-      actions: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          ToolButton(
-            context.tx('刷新', 'Refresh'),
-            icon: FLucideIcons.refreshCw,
-            onPress: device == null || _busy
-                ? null
-                : () => ref.invalidate(filesProvider((device.id, _directory))),
-          ),
-          ToolButton(
-            context.tx('新建目录', 'New directory'),
-            icon: FLucideIcons.folderPlus,
-            onPress: device == null || _busy ? null : _newDirectory,
-          ),
-          ToolButton(
-            context.tx('上传', 'Upload'),
-            icon: FLucideIcons.upload,
-            onPress: device == null || _busy ? null : _upload,
-          ),
-        ],
-      ),
       children: [
         const DevicePicker(),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ToolButton(
+                context.tx('刷新', 'Refresh'),
+                icon: FLucideIcons.refreshCw,
+                onPress: device == null || _busy
+                    ? null
+                    : () => ref.invalidate(
+                        filesProvider((device.id, _directory)),
+                      ),
+              ),
+              ToolButton(
+                context.tx('新建目录', 'New directory'),
+                icon: FLucideIcons.folderPlus,
+                onPress: device == null || _busy ? null : _newDirectory,
+              ),
+              ToolButton(
+                context.tx('上传', 'Upload'),
+                icon: FLucideIcons.upload,
+                onPress: device == null || _busy ? null : _upload,
+              ),
+            ],
+          ),
+        ),
         if (_error != null) ToolErrorNotice(_error!),
         if (_operation != null)
           TransferProgress(done: _done, total: _total, cancel: _cancel),

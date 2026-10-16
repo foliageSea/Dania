@@ -180,26 +180,29 @@ class _AppsPageState extends ConsumerState<AppsPage> {
     final apps = device == null ? null : ref.watch(appsProvider(device.id));
     return ToolPage(
       title: context.tx('应用管理', 'Applications'),
-      actions: Wrap(
-        spacing: 8,
-        runSpacing: 8,
-        children: [
-          ToolButton(
-            context.tx('刷新', 'Refresh'),
-            icon: FLucideIcons.refreshCw,
-            onPress: device == null || _busy
-                ? null
-                : () => ref.invalidate(appsProvider(device.id)),
-          ),
-          ToolButton(
-            context.tx('安装 APK', 'Install APK'),
-            icon: FLucideIcons.download,
-            onPress: device == null || _busy ? null : _install,
-          ),
-        ],
-      ),
       children: [
         const DevicePicker(),
+        Padding(
+          padding: const EdgeInsets.only(bottom: 12),
+          child: Wrap(
+            spacing: 8,
+            runSpacing: 8,
+            children: [
+              ToolButton(
+                context.tx('刷新', 'Refresh'),
+                icon: FLucideIcons.refreshCw,
+                onPress: device == null || _busy
+                    ? null
+                    : () => ref.invalidate(appsProvider(device.id)),
+              ),
+              ToolButton(
+                context.tx('安装 APK', 'Install APK'),
+                icon: FLucideIcons.download,
+                onPress: device == null || _busy ? null : _install,
+              ),
+            ],
+          ),
+        ),
         if (_error != null) ToolErrorNotice(_error!),
         if (_operation != null)
           TransferProgress(done: _done, total: _total, cancel: _cancel),
