@@ -187,7 +187,7 @@ class _SettingsPageState extends ConsumerState<SettingsPage> {
     return PageContent(
       fill: true,
       children: [
-        PageHeading(l.settings),
+        PageHeading(l.settings, hideTitleOnMobile: true),
         if (_error != null) ...[
           ErrorNotice(_error!),
           const SizedBox(height: 16),

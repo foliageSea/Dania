@@ -17,7 +17,7 @@ class OverviewPage extends ConsumerWidget {
     final active = ref.watch(activeDeviceProvider);
     return PageContent(
       children: [
-        const PageHeading('Dania'),
+        const PageHeading('Dania', hideTitleOnMobile: true),
         AdaptiveGrid(
           children: [
             Surface(

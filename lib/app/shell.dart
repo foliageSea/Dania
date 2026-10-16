@@ -66,7 +66,13 @@ class AppShell extends ConsumerWidget {
                   child: FScaffold(
                     childPad: false,
                     header: mobile
-                        ? FHeader(title: Text(labels[shell.currentIndex]))
+                        ? FHeader(
+                            title: Text(
+                              shell.currentIndex == 0
+                                  ? 'Dania'
+                                  : labels[shell.currentIndex],
+                            ),
+                          )
                         : null,
                     footer: mobile
                         ? FBottomNavigationBar(

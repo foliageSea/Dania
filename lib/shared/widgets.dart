@@ -103,12 +103,31 @@ class PageContent extends StatelessWidget {
 }
 
 class PageHeading extends StatelessWidget {
-  const PageHeading(this.title, {this.action, this.compact = false, super.key});
+  const PageHeading(
+    this.title, {
+    this.action,
+    this.compact = false,
+    this.hideTitleOnMobile = false,
+    super.key,
+  });
   final String title;
   final Widget? action;
   final bool compact;
+  final bool hideTitleOnMobile;
   @override
-  Widget build(BuildContext context) => Padding(
+  Widget build(BuildContext context) {
+    if (hideTitleOnMobile && MediaQuery.sizeOf(context).width < 600) {
+      return action == null
+          ? const SizedBox.shrink()
+          : Padding(
+              padding: EdgeInsets.only(bottom: compact ? 16 : 28),
+              child: Align(alignment: Alignment.centerLeft, child: action),
+            );
+    }
+    return _heading(context);
+  }
+
+  Widget _heading(BuildContext context) => Padding(
     padding: EdgeInsets.only(bottom: compact ? 16 : 28),
     child: compact
         ? Wrap(

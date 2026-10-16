@@ -92,6 +92,7 @@ class _DevicesPageState extends ConsumerState<DevicesPage> {
       children: [
         PageHeading(
           context.tx('设备', 'Devices'),
+          hideTitleOnMobile: true,
           action: ToolButton(
             context.tx('刷新', 'Refresh'),
             icon: FLucideIcons.refreshCw,

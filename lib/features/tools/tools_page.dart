@@ -22,7 +22,11 @@ class ToolsPage extends ConsumerWidget {
     return PageContent(
       compact: true,
       children: [
-        PageHeading(context.tx('工具', 'Tools'), compact: true),
+        PageHeading(
+          context.tx('工具', 'Tools'),
+          compact: true,
+          hideTitleOnMobile: true,
+        ),
         const DevicePicker(),
         if (device == null)
           const SelectDeviceNotice()
