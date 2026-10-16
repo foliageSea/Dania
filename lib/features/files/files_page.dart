@@ -26,7 +26,6 @@ class FilesPage extends ConsumerStatefulWidget {
 }
 
 class _FilesPageState extends ConsumerState<FilesPage> {
-  final _path = TextEditingController(text: '/sdcard');
   String _directory = '/sdcard';
   bool _busy = false;
   Object? _error;
@@ -51,22 +50,54 @@ class _FilesPageState extends ConsumerState<FilesPage> {
 
   void _navigate(String path) {
     if (_busy) return;
-    if (!path.startsWith('/') ||
-        path.split('/').contains('..') ||
-        path.contains('\u0000')) {
-      setState(
-        () => _error = ToolboxException(
-          'invalidInput',
-          context.tx('请输入有效绝对路径', 'Enter a valid absolute path'),
-        ),
-      );
-      return;
-    }
     setState(() {
       _directory = path;
-      _path.text = path;
       _error = null;
     });
+  }
+
+  Widget _breadcrumb() {
+    final parts = _directory
+        .split('/')
+        .where((part) => part.isNotEmpty)
+        .toList();
+    String pathAt(int count) => '/${parts.take(count).join('/')}';
+    VoidCallback? press(int count) =>
+        _busy || count == parts.length ? null : () => _navigate(pathAt(count));
+    final collapsedCount = parts.length > 3 ? parts.length - 2 : 0;
+    return SingleChildScrollView(
+      scrollDirection: Axis.horizontal,
+      child: FBreadcrumb(
+        children: [
+          FBreadcrumbItem(
+            current: parts.isEmpty,
+            onPress: press(0),
+            child: const Text('/'),
+          ),
+          if (collapsedCount > 0)
+            FBreadcrumbItem.collapsed(
+              key: ValueKey(_directory),
+              menu: [
+                FItemGroup(
+                  children: [
+                    for (var i = 0; i < collapsedCount; i++)
+                      FItem(
+                        title: Text(parts[i]),
+                        onPress: _busy ? null : () => _navigate(pathAt(i + 1)),
+                      ),
+                  ],
+                ),
+              ],
+            ),
+          for (var i = collapsedCount; i < parts.length; i++)
+            FBreadcrumbItem(
+              current: i == parts.length - 1,
+              onPress: press(i + 1),
+              child: Text(parts[i]),
+            ),
+        ],
+      ),
+    );
   }
 
   Future<void> _run(Future<void> Function() action) async {
@@ -251,7 +282,6 @@ class _FilesPageState extends ConsumerState<FilesPage> {
     _events?.cancel();
     if (_operation != null)
       unawaited(_client.cancel(_operation!).catchError((Object _) {}));
-    _path.dispose();
     super.dispose();
   }
 
@@ -326,39 +356,34 @@ class _FilesPageState extends ConsumerState<FilesPage> {
         if (device == null)
           const SelectDeviceNotice()
         else ...[
-          ToolControls(
-            breakpoint: 860,
-            content: ToolInput(
-              label: context.tx('路径', 'Path'),
-              controller: _path,
-              enabled: !_busy,
-              onSubmit: _navigate,
-            ),
-            actions: Wrap(
-              spacing: 8,
-              runSpacing: 8,
-              children: [
-                ToolButton(
-                  context.tx('打开', 'Open'),
-                  onPress: _busy ? null : () => _navigate(_path.text.trim()),
+          Row(
+            children: [
+              Expanded(child: _breadcrumb()),
+              const SizedBox(width: 8),
+              FPopoverMenu(
+                menuAnchor: .topRight,
+                childAnchor: .bottomRight,
+                menuBuilder: (context, controller, _) => [
+                  FItemGroup(
+                    children: [
+                      for (final path in const ['/sdcard', '/data/local/tmp'])
+                        FItem(
+                          title: Text(path),
+                          onPress: () async {
+                            await controller.hide();
+                            _navigate(path);
+                          },
+                        ),
+                    ],
+                  ),
+                ],
+                builder: (context, controller, _) => ToolButton(
+                  context.tx('快捷路径', 'Shortcuts'),
+                  icon: FLucideIcons.bookmark,
+                  onPress: _busy ? null : controller.toggle,
                 ),
-                ToolButton(
-                  context.tx('上级目录', 'Parent directory'),
-                  icon: FLucideIcons.arrowUp,
-                  onPress: _busy || _directory == '/'
-                      ? null
-                      : () => _navigate(parentRemotePath(_directory)),
-                ),
-                ToolButton(
-                  '/sdcard',
-                  onPress: _busy ? null : () => _navigate('/sdcard'),
-                ),
-                ToolButton(
-                  '/data/local/tmp',
-                  onPress: _busy ? null : () => _navigate('/data/local/tmp'),
-                ),
-              ],
-            ),
+              ),
+            ],
           ),
           const SizedBox(height: 12),
         ],

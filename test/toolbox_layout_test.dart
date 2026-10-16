@@ -233,7 +233,7 @@ void main() {
           expect(find.text('31.5 °C'), findsOneWidget);
         }
         if (page is FilesPage) {
-          final path = find.byType(FTextField);
+          final path = find.byType(FBreadcrumb);
           final pathRect = tester.getRect(path);
           final list = find.byType(ListView);
           final deleteButton = find
@@ -263,6 +263,13 @@ void main() {
             tester.state<ScrollableState>(scrollable).position.pixels,
             greaterThan(0),
           );
+          await tester.tap(
+            find.widgetWithText(
+              FButton,
+              locale.languageCode == 'zh' ? '快捷路径' : 'Shortcuts',
+            ),
+          );
+          await tester.pumpAndSettle();
           await tester.tap(find.text('/data/local/tmp'));
           await tester.pumpAndSettle();
           expect(
