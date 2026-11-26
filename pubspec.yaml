@@ -1,7 +1,7 @@
 name: dania
 description: Android toolbox powered by Shizuku, ADB and scrcpy.
 publish_to: none
-version: 0.1.0+1
+version: 0.1.1+2
 
 environment:
   sdk: '>=3.13.0 <4.0.0'
