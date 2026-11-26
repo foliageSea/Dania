@@ -59,6 +59,37 @@ fvm flutter build apk --debug
 
 构建产物位于 `build/app/outputs/flutter-apk/app-debug.apk`。
 
+### GitHub 发版
+
+首次发版前，在 GitHub 仓库的 **Settings → Environments** 创建 `release` 环境，并添加以下 **Environment secrets**（不要使用明文 Variables）。建议限制 `v*` 标签的创建权限，并为 `release` 环境配置审批，以免未审核的标签触发签名：
+
+| Secret | 值 |
+| --- | --- |
+| `ANDROID_KEYSTORE_BASE64` | 新 Android keystore 文件的 Base64 内容 |
+| `ANDROID_KEYSTORE_PASSWORD` | Keystore 密码 |
+| `ANDROID_KEY_ALIAS` | 签名密钥别名 |
+| `ANDROID_KEY_PASSWORD` | 签名密钥密码 |
+
+可用 GitHub CLI 直接写入 keystore Secret，避免将 Base64 内容打印到终端：
+
+```sh
+base64 < /path/to/new-release.jks | tr -d '\r\n' | gh secret set ANDROID_KEYSTORE_BASE64 --env release
+```
+
+如果版本号已随代码提交，可直接为对应提交打标签。例如发布 `0.1.1+2` 时，先将包含本工作流的版本提交推送到 GitHub，再在该提交上执行 `git tag -a v0.1.1 -m "Dania v0.1.1"` 和 `git push origin refs/tags/v0.1.1`。
+
+后续发版时，从已同步到远端的干净分支执行（以下以 `0.1.2` 为例）：
+
+```sh
+./scripts/release.sh 0.1.2 --push
+```
+
+脚本更新 [pubspec.yaml](pubspec.yaml) 中的 `version`（如 `0.1.2+3`），提交变更并创建附注标签 `v0.1.2`。Android 的 `versionName` 和 `versionCode` 均由 Flutter 从此处读取。构建号默认加 1，也可在版本号后显式指定一个更大的构建号，例如 `./scripts/release.sh 0.1.2 5 --push`。不加 `--push` 时只生成本地提交和标签。
+
+推送标签后，GitHub Actions 会校验标签与项目版本一致、构建并验证签名，然后发布 GitHub Release，附件为 `Dania-v0.1.2.apk`。调试构建不需要发版密钥；本地 Release 构建如需签名，需同时设置 `ANDROID_KEYSTORE_PATH`（绝对路径）、`ANDROID_KEYSTORE_PASSWORD`、`ANDROID_KEY_ALIAS` 和 `ANDROID_KEY_PASSWORD`。
+
+**签名迁移：**旧密钥和密码曾提交到 Git，应视为已泄露，不要复用，并妥善离线备份新密钥。换签后，使用旧签名安装的用户通常无法直接覆盖升级，需先备份数据，再卸载旧版本并安装新版。
+
 ### 检查与测试
 
 ```sh

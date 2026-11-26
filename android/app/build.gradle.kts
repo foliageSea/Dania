@@ -1,14 +1,23 @@
-import java.util.Properties
-
 plugins {
     id("com.android.application")
     // The Flutter Gradle Plugin must be applied after the Android and Kotlin Gradle plugins.
     id("dev.flutter.flutter-gradle-plugin")
 }
 
-val keyProperties = Properties().apply {
-    rootProject.file("key.properties").inputStream().use { load(it) }
+val signingEnvironment = listOf(
+    "ANDROID_KEYSTORE_PATH",
+    "ANDROID_KEYSTORE_PASSWORD",
+    "ANDROID_KEY_ALIAS",
+    "ANDROID_KEY_PASSWORD",
+).associateWith { System.getenv(it)?.takeIf(String::isNotBlank) }
+
+val configuredSigningValues = signingEnvironment.values.count { it != null }
+require(configuredSigningValues == 0 || configuredSigningValues == signingEnvironment.size) {
+    "Release signing requires ANDROID_KEYSTORE_PATH, ANDROID_KEYSTORE_PASSWORD, " +
+        "ANDROID_KEY_ALIAS, and ANDROID_KEY_PASSWORD to be set together"
 }
+
+val releaseSigningConfigured = configuredSigningValues == signingEnvironment.size
 
 android {
     namespace = "com.foliage.dania"
@@ -32,17 +41,21 @@ android {
     }
 
     signingConfigs {
-        create("release") {
-            storeFile = file(keyProperties.getProperty("storeFile"))
-            storePassword = keyProperties.getProperty("storePassword")
-            keyAlias = keyProperties.getProperty("keyAlias")
-            keyPassword = keyProperties.getProperty("keyPassword")
+        if (releaseSigningConfigured) {
+            create("release") {
+                storeFile = file(signingEnvironment.getValue("ANDROID_KEYSTORE_PATH")!!)
+                storePassword = signingEnvironment.getValue("ANDROID_KEYSTORE_PASSWORD")!!
+                keyAlias = signingEnvironment.getValue("ANDROID_KEY_ALIAS")!!
+                keyPassword = signingEnvironment.getValue("ANDROID_KEY_PASSWORD")!!
+            }
         }
     }
 
     buildTypes {
         release {
-            signingConfig = signingConfigs.getByName("release")
+            if (releaseSigningConfigured) {
+                signingConfig = signingConfigs.getByName("release")
+            }
             proguardFiles("proguard-rules.pro")
         }
     }
