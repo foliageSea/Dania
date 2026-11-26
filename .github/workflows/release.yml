@@ -72,7 +72,9 @@ jobs:
           printf '%s' "$ANDROID_KEYSTORE_BASE64" | base64 --decode > "$ANDROID_KEYSTORE_PATH"
           unset ANDROID_KEYSTORE_BASE64
 
-          flutter build apk --release --no-pub
+          # Let Flutter regenerate the Android plugin registrant in release mode.
+          flutter build apk --release
+          git diff --exit-code -- pubspec.lock
           apk=build/app/outputs/flutter-apk/app-release.apk
           "$ANDROID_HOME/build-tools/36.0.0/apksigner" verify "$apk"
           cp "$apk" "$RUNNER_TEMP/Dania-v$APP_VERSION.apk"
